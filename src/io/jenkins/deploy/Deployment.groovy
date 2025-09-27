@@ -58,7 +58,8 @@ class Deployment implements Serializable {
               (script.env.PREVIOUS_BUILD_SUCCESS?.toBoolean() ?: false) &&
               (script.env.PREVIOUS_IMAGE_UPLOADED?.toBoolean() ?: false) &&
               (script.env.FORCE_BUILD?.toBoolean() == false)
-
+      case "node":
+        return false
       default:
           return true
     }
