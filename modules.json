@@ -1,0 +1,273 @@
+{
+    "global": {
+        "kubeconfig": "kubeconfig in jenkins credential id",
+        "registry_credential": "docker secret in jenkins credential id",
+        "maven_settings": "maven setting in jenkins file id",
+        "maven_credential": "maven auth user in jenkins credential id",
+        "default_branch": "dev",
+        "git_credential": "github user in jenkins credential id",
+        "fallback_branches": [
+            "master",
+            "test"
+        ],
+        "deploy_cluster": "test",
+        "img_registry_user": "test",
+        "img_registry_pwd": "123",
+        "img_registry": "https://hub.docker.io"
+    },
+    "java-example(vm)": {
+        "programming": "java",
+        "git": "http://github.com/{project_name}",
+        "build_command": "mvn clean package -Dmaven.test.skip=true -U -Pdev --settings settings.xml",
+        "build_pre": [],
+        "build_post": [
+            {
+                "function": "uploadNexusArtifactUploader",
+                "args": {
+                    "file": "aaa/target/aaa.jar",
+                    "artifact_id": "aaa",
+                    "group": "aaa",
+                    "subfix": "1.0-dev-SNAPSHOT"
+                }
+            }
+        ],
+        "build_platform": "docker",
+        "platform": "vm",
+        "parameters": [
+            {
+                "type": "multi-choice",
+                "must": true,
+                "name": "MODULES",
+                "description": "选择模块(多选)",
+                "choices": {
+                    "module_1": "aaa/target/aaa.jar",
+                    "module_2": "bbb/target/bbb.jar"
+                }
+            }
+        ],
+        "source": "global-pay-key-rpc/target",
+        "destination_dir": "/data",
+        "destination_host": "{hostname}",
+        "docker_registry_url_prefix": "hub.docker.io/{project_name}",
+        "base_image": "hub.docker.io/base/openjdk:21.0.3",
+        "job_prefix": "{deploy to destnation prefix}",
+        "exec_command": {
+            "job": "/data/run.sh module_1 8080 --jdwp --app-name module_1 --log -Ddubbo.protocol.host=[IP_ADDRESS]",
+            "api": "/data/run.sh module_2 8081 --jdwp --app-name module_2 --log -Ddubbo.protocol.host=[IP_ADDRESS]"
+        },
+        "images": {
+            "build": "maven:3.9-eclipse-temurin-21-noble",
+            "deploy": "bitnami/kubectl"
+        },
+        "inside_args": {
+            "build": "-v /root/.m2:/root/.m2 -v /root/.jenkins:/root/.jenkins"
+        },
+        "upload_flag": "true"
+    },
+    "rust-example(k8s)": {
+        "programming": "rust",
+        "git": "https://github.com/{project_name}.git",
+        "build_command": "/usr/local/cargo/bin/cargo build --release",
+        "build_pre": [
+            {
+                "function": "cloneCore",
+                "args": {
+                    "path": "/home/jenkins/agent/workspace/(your dependent repo)",
+                    "git": "https://github.com/{project_name}.git"
+                }
+            }
+        ],
+        "build_post": [],
+        "build_platform": "kubernetes",
+        "platform": "kubernetes",
+        "parameters": [
+            {
+                "type": "multi-choice",
+                "must": true,
+                "name": "MODULES",
+                "description": "选择模块(多选)",
+                "choices": {
+                    "btc": "",
+                    "doge": "",
+                    "ltc": "",
+                    "sol": "",
+                    "sui": "",
+                    "ton": ""
+                }
+            }
+        ],
+        "images": {
+            "build": "hub.docker.io/base/rust-base:latest",
+            "deploy": "bitnami/kubectl"
+        },
+        "inside_args": {
+            "build": "-v /tmp/m2:/root/.m2/"
+        },
+        "docker_registry_url_prefix": "hub.docker.io/{project_name}",
+        "base_image": "",
+        "job_prefix": "{deploy to destnation will add path/k8s deployment prefix}",
+        "manifest_prefix": "{this name will filling k8s manifest name}",
+        "shared_module": "false"
+    },
+    "github-release-download-example(vm)": {
+        "programming": "rust",
+        "git": "https://github.com/{project_name}.git",
+        "build_command": "bash scripts/verify-deps.sh && make build",
+        "download_from_release": "true",
+        "build_pre": [],
+        "build_post": [],
+        "build_platform": "docker",
+        "platform": "vm",
+        "parameters": [
+            {
+                "type": "multi-choice",
+                "must": true,
+                "name": "MODULES",
+                "description": "选择模块(多选)",
+                "choices": {
+                    "module_a": "target/release/(artifact_name)"
+                }
+            },
+            {
+                "type": "string",
+                "must": true,
+                "name": "FORCE_RELEASE_VERSION",
+                "description": "强制 Release 版本(例如 master/v1.0.0)",
+                "default": ""
+            }
+        ],
+        "source": "global-pay-key-rpc/target",
+        "destination_dir": "/data",
+        "destination_host": "{hostname}",
+        "docker_registry_url_prefix": "hub.docker.io/{project_name}",
+        "base_image": "hub.docker.io/base/openjdk:21.0.3",
+        "exec_command": {
+            "module_a": "/data/run.sh module_a --your-parameters"
+        },
+        "images": {
+            "build": "hub.docker.io/base/rust:ubuntu22"
+        },
+        "pre_exec_command": {
+            "module_a": "/video-storage/run.sh module_a --shutdown"
+        },
+        "inside_args": {
+            "build": "-v /root/.jenkins:/root/.jenkins -v /root/.cargo/:/root/.cargo/"
+        },
+        "upload_flag": "true",
+        "shared_module": "false"
+    },
+    "vue-example(vm)": {
+        "programming": "frontend",
+        "git": "https://github.com/{project_name}.git",
+        "build_command": "apk add --no-cache bash git curl build-base autoconf automake libtool pkgconf zlib-dev nasm libjpeg-turbo-dev libjpeg-turbo-utils libpng-dev libwebp-dev gifsicle pngquant optipng python3 && npm install --force && npm run pro",
+        "build_pre": [],
+        "build_post": [],
+        "build_platform": "docker",
+        "platform": "vm",
+        "parameters": [
+            {
+                "type": "multi-choice",
+                "must": true,
+                "name": "MODULES",
+                "description": "选择模块(多选)",
+                "choices": {
+                    "ui": "dist/**"
+                }
+            }
+        ],
+        "source": "global-pay-key-rpc/target",
+        "destnation_dir": "/data",
+        "destination_host": "{hostname-1}, {hostname-2}",
+        "docker_registry_url_prefix": "hub.docker.io/{project_name}",
+        "base_image": "hub.docker.io/base/openjdk:21.0.3",
+        "job_prefix": "{deploy to destnation will add path/k8s deployment prefix}",
+        "exec_command": {},
+        "upload_flag": "true",
+        "images": {
+            "build": "node:20.19.2-alpine3.22"
+        },
+        "inside_args": {
+            "build": "-v /root/.jenkins:/root/.jenkins -v /root/.npm:/root/.npm"
+        },
+        "shared_module": "false"
+    },
+    "vue-example(k8s)": {
+        "programming": "frontend",
+        "git": "https://github.com/{project_name}.git",
+        "build_command": "apk add --no-cache bash git curl build-base autoconf automake libtool pkgconf zlib-dev nasm libjpeg-turbo-dev libjpeg-turbo-utils libpng-dev libwebp-dev gifsicle pngquant optipng python3 && npm install --force && npm run pro",
+        "build_pre": [],
+        "build_post": [],
+        "build_platform": "kubernetes",
+        "platform": "kubernetes",
+        "parameters": [
+            {
+                "type": "multi-choice",
+                "must": true,
+                "name": "MODULES",
+                "description": "选择模块(多选)",
+                "choices": {
+                    "module_1": ""
+                }
+            }
+        ],
+        "docker_registry_url_prefix": "hub.docker.io/tggame-prod",
+        "base_image": "{if nil, will use default image, if repo include dockerfile, use repo's base image, if not, use default image}",
+        "job_prefix": "{deploy to destnation will add path/k8s deployment prefix}",
+        "exec_command": "",
+        "images": {
+            "build": "hub.docker.io/library/node:20.18.0",
+            "deploy": "bitnami/kubectl"
+        },
+        "inside_args": {
+            "build": "-v /tmp/m2:/root/.m2/"
+        }
+    },
+    "rust-example(vm)": {
+        "programming": "rust",
+        "git": "https://github.com/{project_name}.git",
+        "build_command": "/usr/local/cargo/bin/cargo build --release",
+        "build_pre": [
+            {
+                "function": "cloneCore",
+                "args": {
+                    "path": "{jenkins_workspace_path}/{jenkins_job_name}/{dependency_repo_name} (/home/jenkins/agent/workspace/eth-node/eth-lib)",
+                    "git": "https://github.com/{project_name}.git",
+                    "branch": "main"
+                }
+            }
+        ],
+        "build_post": [],
+        "build_platform": "kubernetes",
+        "platform": "kubernetes",
+        "parameters": [
+            {
+                "type": "multi-choice",
+                "must": true,
+                "name": "MODULES",
+                "description": "选择模块(多选)",
+                "choices": {
+                    "module_1": "{if nil, use repo's dockerfile, if not null, use this artifact path}",
+                    "module_2": "",
+                    "module_3": "",
+                    "module_4": "",
+                    "module_5": "",
+                    "module_6": ""
+                }
+            }
+        ],
+        "docker_registry_url_prefix": "hub.docker.io/wallet-test",
+        "base_image": "",
+        "job_prefix": "{deploy to destnation will add path/k8s deployment prefix}",
+        "manifest_prefix": "{this name will filling k8s manifest name}",
+        "exec_command": "",
+        "upload_flag": "true",
+        "shared_module": "false",
+        "images": {
+            "build": "hub.docker.io/base/rust-base:latest",
+            "deploy": "bitnami/kubectl"
+        },
+        "inside_args": {
+            "build": "-v /tmp/m2:/root/.m2/"
+        }
+    }
+}
