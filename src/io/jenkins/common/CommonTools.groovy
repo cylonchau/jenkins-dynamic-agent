@@ -37,13 +37,21 @@ class CommonTools implements Serializable {
         script.env.ROOT_WORKSPACE = originalRoot
       }
     }
-    
+
     def ex(String paramName, def paramValue) {
+      
+      def paramConfig = script.selectedModuleConfig.parameters.find { it.name == paramName }
       def cleanedValue = paramValue?.toString()?.trim()
-      // 空值校验
-      if (!cleanedValue) {
+
+      // must 校验
+      if (paramConfig?.must?.toBoolean() == true && !cleanedValue) {
         script.currentBuild.result = 'ABORTED'
-        script.error("参数 ${paramName} 无效：不能为空")
+        script.error("参数 ${paramName} 无效：不能为空（配置 must=true）")
+      }
+
+      // 非 must 的情况下被允许
+      if (!cleanedValue) {
+        return
       }
       // 支持多选：按逗号分割并清除首尾空格
       def values = cleanedValue.split(',').collect { it.trim() }
@@ -55,6 +63,8 @@ class CommonTools implements Serializable {
         }
       }
     }
+
+
     
     def checkPreviousBuildAndSetEnv() {
       def prevBuild = script.currentBuild.rawBuild.getPreviousBuild()

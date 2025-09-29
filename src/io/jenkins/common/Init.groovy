@@ -25,6 +25,7 @@ class Init implements Serializable {
     def config = script.readJSON(file: 'modules.json')
     def jobName = script.env.JOB_NAME
     def selectedModuleConfig = config[jobName]
+    script.selectedModuleConfig = selectedModuleConfig
     def globalConfig = config["global"]
 
     // job 配置
