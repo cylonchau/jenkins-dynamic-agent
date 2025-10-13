@@ -27,7 +27,7 @@ class ImageMaker implements Serializable {
       case 'frontend':
       case 'vue':
       case 'js':
-        if (script.env.SHARED_MODULE == 'true') {
+        if (script.env.SHARED_MODULE.toBoolean() == true) {
           // 共享模块的镜像构建
           def first_mod = module_list[0]
           def subpath = app_module[first_mod]?.toString() ?: ''
@@ -107,7 +107,7 @@ class ImageMaker implements Serializable {
         }
         break
       case "rust":
-        if (script.env.SHARED_MODULE == 'true') {
+        if (script.env.SHARED_MODULE.toBoolean() == true) {
           // 共享模块的镜像构建
           def first_mod = module_list[0]
           def subpath = app_module[first_mod]?.toString() ?: ''
@@ -154,6 +154,7 @@ class ImageMaker implements Serializable {
         } else {
           // 独立模块的镜像构建
           for (mod in module_list) {
+            script.echo mod
             def subpath = app_module[mod]?.toString() ?: ''
             def path = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpath}"
             def image_addr = "${script.env.DOCKER_REGISTRY}/${script.env.JOB_PREFIX}-${mod}:${image_tag}"
@@ -170,11 +171,7 @@ class ImageMaker implements Serializable {
               script.withEnv(["DOCKER_CONFIG=${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"]) {
                 try {
                   script.dir(path) {
-                    if (!script.fileExists('Dockerfile')) {
-                      script.writeFile file: 'Dockerfile', text: dockerfileContent
-                    } else {
-                      script.echo "${Colors.YELLOW}⚠️  跳过写入，Dockerfile 已存在${Colors.RESET}"
-                    }
+                    script.writeFile file: 'Dockerfile', text: dockerfileContent
                     runBuildImage(image_addr.toString())
                   }
                   script.echo "${Colors.GREEN}✅ 成功构建并推送镜像: ${image_addr}${Colors.RESET}"
@@ -189,7 +186,7 @@ class ImageMaker implements Serializable {
         }
         break
       default:
-        if (script.env.SHARED_MODULE == 'true') {
+        if (script.env.SHARED_MODULE.toBoolean() == true) {
           // 共享模块的镜像构建
           def first_mod = module_list[0]
           def subpath = app_module[first_mod]?.toString() ?: ''
