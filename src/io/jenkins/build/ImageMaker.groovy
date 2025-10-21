@@ -32,6 +32,7 @@ class ImageMaker implements Serializable {
           def first_mod = module_list[0]
           def subpath = app_module[first_mod]?.toString() ?: ''
           def path = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpath}"
+          def image_addr = ""
 
           def suffix = script.env.JOB_SUFFIX
           if (suffix && suffix.trim()) {
@@ -112,6 +113,7 @@ class ImageMaker implements Serializable {
           def first_mod = module_list[0]
           def subpath = app_module[first_mod]?.toString() ?: ''
           def path = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpath}"
+          def image_addr = ""
 
           def suffix = script.env.JOB_SUFFIX
           if (suffix && suffix.trim()) {
@@ -191,6 +193,7 @@ class ImageMaker implements Serializable {
           def first_mod = module_list[0]
           def subpath = app_module[first_mod]?.toString() ?: ''
           def path = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpath}"
+          def image_addr = ""
 
           def suffix = script.env.JOB_SUFFIX
           if (suffix && suffix.trim()) {
