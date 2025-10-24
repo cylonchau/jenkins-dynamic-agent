@@ -56,8 +56,8 @@ class Deployment implements Serializable {
               (script.env.CURRENT_COMMIT_ID ?: '') == (script.env.PREVIOUS_COMMIT_ID ?: '') &&
               (script.env.SAME_MODULES?.toBoolean() ?: false) &&
               (script.env.PREVIOUS_BUILD_SUCCESS?.toBoolean() ?: false) &&
-              (script.env.PREVIOUS_IMAGE_UPLOADED?.toBoolean() ?: false) &&
-              (script.env.FORCE_BUILD?.toBoolean() == false)
+              (script.env.FORCE_BUILD?.toBoolean() == false) &&
+              (script.env.SKIP_BUILD_IMG.toBoolean() == true)
       case "node":
         return false
       default:

@@ -76,7 +76,7 @@ class KubernetesAgent extends AgentInterface {
               script.container("build") {
                 script.build_client.build(script.hook_funcs)
               }
-              if(script.env.SKIP_BUILD_IMG != "true") {
+              if(script.env.SKIP_BUILD_IMG.toBoolean() != true) {
                 script.container('buildkit') {
                   script.image_builer.buildImage()
                 }

@@ -127,9 +127,10 @@ class CommonTools implements Serializable {
   }
 
   // 检查docker tag是否存在，存在不要重复编译了
-  def checkHarborTagExists(String project, String repo, String tag) {
+  def checkHarborTagExists(String repo) {
+    def tag = "${script.env.CURRENT_COMMIT_ID}"
     try {
-      def registryUrl = "${script.env.IMG_REGISTRY}/v2/${project}/${repo}/manifests/${tag}"
+      def registryUrl = "${script.env.REGISTRY}/v2/${script.env.REGISTRY_PROJECT}/${repo}/manifests/${tag}"
       if (script.env.LOG_DEBUG?.toBoolean()) {
         println "${Colors.CYAN}请求 Harbor API: ${registryUrl}${Colors.RESET}"
       }
@@ -168,4 +169,5 @@ class CommonTools implements Serializable {
       return false
     }
   }
+
 }

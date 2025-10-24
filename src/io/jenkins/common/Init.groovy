@@ -64,6 +64,15 @@ class Init implements Serializable {
     script.env.SHARED_MODULE          = selectedModuleConfig.shared_module?.toString() ?: "false"
     script.env.MANIFEST_PREFIX        = selectedModuleConfig.manifest_prefix ?: ""
 
+    // 镜像相关独立变量
+    // 解析 docker_registry_url_prefix
+    // 例如: "docker.io/nginx"
+    def registryPrefix = script.env.DOCKER_REGISTRY
+    def parts = registryPrefix.split('/')
+    
+    script.env.REGISTRY  = parts[0]  // docker.io, 对应 docker hub 的 project
+    script.env.REGISTRY_PROJECT = parts.size() > 1 ? parts[1] : ''  // nginx 对应 hub 的 project
+
     // 全局配置
     script.env.KUBECONFIG           = globalConfig.kubeconfig?.toString() ?: ""
     script.env.MAVEN_SETTINGS       = globalConfig.maven_settings?.toString() ?: ""
