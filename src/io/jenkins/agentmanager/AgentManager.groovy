@@ -52,7 +52,7 @@ class AgentManager implements Serializable {
     def app_module = script.readJSON text: script.env.APP_MODULE
     def exists
     if (script.env.PLATFORM in ["kubernetes", "docker"]) {
-      if (script.env.SHARED_MODULE?.toBoolean() == true &&) {
+      if (script.env.SHARED_MODULE?.toBoolean() == true ) {
         // ---- 共享模块镜像构建逻辑 ----
         def first_mod = module_list[0]
         def subpath = app_module[first_mod]?.toString() ?: ''
@@ -67,10 +67,10 @@ class AgentManager implements Serializable {
                                 .checkHarborTagExists(repoName)
 
         if (exists) {
-          script.echo "${Colors.BRIGHT_PURPLE}共享模块镜像 ${repoName}:${script.env.GIT_COMMIT} 已存在，跳过构建${Colors.RESET}"
+          script.echo "${Colors.BRIGHT_PURPLE}共享模块镜像 ${repoName}:${script.env.CURRENT_COMMIT_ID} 已存在，跳过构建${Colors.RESET}"
           return // 直接退出整个构建阶段
         } else {
-          script.echo "${Colors.BRIGHT_PURPLE}镜像 ${repoName}:${script.env.GIT_COMMIT} 不存在，触发全局${Colors.RESET}"
+          script.echo "${Colors.BRIGHT_PURPLE}镜像 ${repoName}:${script.env.CURRENT_COMMIT_ID} ${Colors.RESET}"
           agent.build(buildOptions)
         }
         script.env.SKIP_BUILD_IMG = exists
@@ -84,9 +84,9 @@ class AgentManager implements Serializable {
                                   .checkHarborTagExists(repoName)
 
           if (exists) {
-            script.echo "${Colors.BRIGHT_PURPLE}镜像 ${repoName}:${script.env.GIT_COMMIT} 已存在，跳过${Colors.RESET}"
+            script.echo "${Colors.BRIGHT_PURPLE}镜像 ${repoName}:${script.env.CURRENT_COMMIT_ID} 已存在，跳过构建${Colors.RESET}"
           } else {
-            script.echo "${Colors.BRIGHT_PURPLE}镜像 ${repoName}:${script.env.GIT_COMMIT} 不存在，触发全局${Colors.RESET}"
+            script.echo "${Colors.BRIGHT_PURPLE}镜像 ${repoName}:${script.env.CURRENT_COMMIT_ID} 不存在，触发全局构建${Colors.RESET}"
             allExist = false
             break   // 有一个不存在就跳出循环
           }
@@ -98,6 +98,7 @@ class AgentManager implements Serializable {
           script.echo "${Colors.GREEN}所有模块镜像已存在，跳过构建${Colors.RESET}"
         }
         script.env.SKIP_BUILD_IMG = allExist
+      }
     } else {
       agent.build(buildOptions)
     }

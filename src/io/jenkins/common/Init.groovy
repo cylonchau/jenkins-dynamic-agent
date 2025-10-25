@@ -70,7 +70,6 @@ class Init implements Serializable {
     def registryPrefix = script.env.DOCKER_REGISTRY
     def parts = registryPrefix.split('/')
     
-    script.env.REGISTRY  = parts[0]  // docker.io, 对应 docker hub 的 project
     script.env.REGISTRY_PROJECT = parts.size() > 1 ? parts[1] : ''  // nginx 对应 hub 的 project
 
     // 全局配置
@@ -80,7 +79,11 @@ class Init implements Serializable {
     script.env.DEFAULT_BRANCH       = globalConfig.default_branch?.toString() ?: ""
     script.env.REGISTRY_CREDNTIAL   = globalConfig.registry_credential?.toString() ?: ""
     script.env.GIT_CREDNTIAL        = globalConfig.git_credential?.toString() ?: ""
+<<<<<<< HEAD
     script.env.IMG_REGISTRY         = globalConfig.img_registry?.toString() ?: "https://hub.docker.io"
+=======
+    script.env.IMG_REGISTRY         = globalConfig.img_registry?.toString() ?: "https://docker.io"
+>>>>>>> e9407ab (fix: 获取的错误镜像tag)
     script.env.IMG_REGISTRY_USER    = globalConfig.img_registry_user?.toString() ?: ""
     script.env.IMG_REGISTRY_PWD     = globalConfig.img_registry_pwd?.toString() ?: ""
     

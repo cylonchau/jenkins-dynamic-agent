@@ -113,12 +113,13 @@ class CommonTools implements Serializable {
     
     switch (stageName) {
       case 'compile':
-          return fallback ||
-              (script.env.CURRENT_COMMIT_ID == script.env.PREVIOUS_COMMIT_ID) &&
-              (script.env.SAME_MODULES?.toBoolean() == true) &&
-              (script.env.PREVIOUS_BUILD_SUCCESS?.toBoolean() == true) &&
-              (script.env.PREVIOUS_IMAGE_UPLOADED?.toBoolean() == true) &&
-              (script.env.FORCE_BUILD?.toBoolean() == false)
+        return false
+          // return fallback ||
+          //     (script.env.CURRENT_COMMIT_ID == script.env.PREVIOUS_COMMIT_ID) &&
+          //     (script.env.SAME_MODULES?.toBoolean() == true) &&
+          //     (script.env.PREVIOUS_BUILD_SUCCESS?.toBoolean() == true) &&
+          //     (script.env.PREVIOUS_IMAGE_UPLOADED?.toBoolean() == true) &&
+          //     (script.env.FORCE_BUILD?.toBoolean() == false)
       case 'deploy':
         return fallback || script.env.SKIP_DEPLOY_STAGE?.toBoolean() == true
       default:
@@ -128,11 +129,11 @@ class CommonTools implements Serializable {
 
   // 检查docker tag是否存在，存在不要重复编译了
   def checkHarborTagExists(String repo) {
-    def tag = "${script.env.CURRENT_COMMIT_ID}"
+    def tag = script.env.CURRENT_COMMIT_ID
     try {
-      def registryUrl = "${script.env.REGISTRY}/v2/${script.env.REGISTRY_PROJECT}/${repo}/manifests/${tag}"
+      def registryUrl = "${script.env.IMG_REGISTRY}/v2/${script.env.REGISTRY_PROJECT}/${repo}/manifests/${tag}"
       if (script.env.LOG_DEBUG?.toBoolean()) {
-        println "${Colors.CYAN}请求 Harbor API: ${registryUrl}${Colors.RESET}"
+        script.println "${Colors.CYAN}请求 Harbor API: ${registryUrl}${Colors.RESET}"
       }
 
       def authString = "${script.env.IMG_REGISTRY_USER}:${script.env.IMG_REGISTRY_PWD}"
@@ -153,7 +154,7 @@ class CommonTools implements Serializable {
         return true
       } else if (responseCode == 404) {
         if (script.env.LOG_DEBUG?.toBoolean()) {
-          println "${Colors.BG_YELLOW}镜像 ${repo}:${tag} 不存在 (404)${Colors.RESET}"
+          script.println "${Colors.BG_YELLOW}镜像 ${repo}:${tag} 不存在 (404)${Colors.RESET}"
         }
         return false
       } else {
