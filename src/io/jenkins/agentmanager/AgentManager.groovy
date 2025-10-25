@@ -51,10 +51,8 @@ class AgentManager implements Serializable {
     def module_list = script.params.MODULES.split(',')
     def app_module = script.readJSON text: script.env.APP_MODULE
     def exists
-
-    if (script.env.SHARED_MODULE?.toBoolean() == true &&
-        (script.env.PLATFORM in ["kubernetes", "docker"])) {
-
+    if (script.env.PLATFORM in ["kubernetes", "docker"]) {
+      if (script.env.SHARED_MODULE?.toBoolean() == true &&) {
         // ---- 共享模块镜像构建逻辑 ----
         def first_mod = module_list[0]
         def subpath = app_module[first_mod]?.toString() ?: ''
@@ -76,30 +74,30 @@ class AgentManager implements Serializable {
           agent.build(buildOptions)
         }
         script.env.SKIP_BUILD_IMG = exists
-    } else {
-      // ---- 非共享模块逻辑 ----
-      def allExist = true
-
-      for (mod in module_list) {
-        def repoName = "${script.env.JOB_PREFIX}-${mod}"
-        exists = CommonTools.getInstance(script)
-                                .checkHarborTagExists(repoName)
-
-        if (exists) {
-          script.echo "${Colors.BRIGHT_PURPLE}镜像 ${repoName}:${script.env.GIT_COMMIT} 已存在，跳过${Colors.RESET}"
-        } else {
-          script.echo "${Colors.BRIGHT_PURPLE}镜像 ${repoName}:${script.env.GIT_COMMIT} 不存在，触发全局${Colors.RESET}"
-          allExist = false
-          break   // 有一个不存在就跳出循环
-        }
-      }
-
-      if (!allExist) {
-        agent.build(buildOptions)
       } else {
-        script.echo "${Colors.GREEN}所有模块镜像已存在，跳过构建${Colors.RESET}"
-      }
-      script.env.SKIP_BUILD_IMG = allExist
+        // ---- 非共享模块逻辑 ----
+        def allExist = true
+
+        for (mod in module_list) {
+          def repoName = "${script.env.JOB_PREFIX}-${mod}"
+          exists = CommonTools.getInstance(script)
+                                  .checkHarborTagExists(repoName)
+
+          if (exists) {
+            script.echo "${Colors.BRIGHT_PURPLE}镜像 ${repoName}:${script.env.GIT_COMMIT} 已存在，跳过${Colors.RESET}"
+          } else {
+            script.echo "${Colors.BRIGHT_PURPLE}镜像 ${repoName}:${script.env.GIT_COMMIT} 不存在，触发全局${Colors.RESET}"
+            allExist = false
+            break   // 有一个不存在就跳出循环
+          }
+        }
+
+        if (!allExist) {
+          agent.build(buildOptions)
+        } else {
+          script.echo "${Colors.GREEN}所有模块镜像已存在，跳过构建${Colors.RESET}"
+        }
+        script.env.SKIP_BUILD_IMG = allExist
     } else {
       agent.build(buildOptions)
     }
