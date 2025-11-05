@@ -161,6 +161,9 @@ class ImageMaker implements Serializable {
             def path = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpath}"
             def image_addr = "${script.env.DOCKER_REGISTRY}/${script.env.JOB_PREFIX}-${mod}:${image_tag}"
             def projectName = "${script.env.JOB_PREFIX}-${mod}"
+            if (script.env.NAME_ONLY.toBoolean() == true ) {
+              projectName = "${mod}"
+            }
             def dockerfileContent = """
               FROM debian:bookworm-slim:latest
               WORKDIR /app
