@@ -37,6 +37,7 @@ class Init implements Serializable {
     script.env.JOB_SUFFIX                       = selectedModuleConfig.job_suffix?.toString() ?: ""
     script.env.GIT_REPO                         = selectedModuleConfig.git?.toString() ?: ""
     script.env.BUILD_COMMAND                    = selectedModuleConfig.build_command?.toString() ?: ""
+    script.env.BUILD_IMAGE_ARGS                 = selectedModuleConfig.build_image_args?.toString() ?: ""
     script.env.BUILD_PLATFORM                   = selectedModuleConfig.build_platform?.toString() ?: "docker"
     script.env.PLATFORM                         = selectedModuleConfig.platform?.toString() ?: ""
     script.env.LOG_DEBUG                        = selectedModuleConfig.log_debug?.toString() ?: "false"

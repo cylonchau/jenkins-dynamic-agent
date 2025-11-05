@@ -176,8 +176,16 @@ class ImageMaker implements Serializable {
               script.withEnv(["DOCKER_CONFIG=${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"]) {
                 try {
                   script.dir(path) {
-                    script.writeFile file: 'Dockerfile', text: dockerfileContent
-                    runBuildImage(image_addr.toString())
+                    if (!script.fileExists('Dockerfile')) {
+                      script.writeFile file: 'Dockerfile', text: dockerfileContent
+                    } else {
+                      script.echo "${Colors.YELLOW}⚠️  跳过写入，Dockerfile 已存在${Colors.RESET}"
+                    }
+                      if (script.env.BUILD_IMAGE_ARGS) {
+                        runBuildImage(image_addr.toString(), projectName)
+                      } else {
+                        runBuildImage(image_addr.toString())
+                      }
                   }
                   script.echo "${Colors.GREEN}✅ 成功构建并推送镜像: ${image_addr}${Colors.RESET}"
                 } catch (Exception e) {
@@ -247,37 +255,95 @@ class ImageMaker implements Serializable {
     }
   }
 
-  def runBuildImage(image_addr) {
+  def runBuildImage(image_addr, arg_binary="") {
     String baseImage = script.env.BASE_IMAGE.toString()
     
     if (!script.fileExists('Dockerfile')) {
       script.error "❌ Dockerfile 不存在"
+    }
+    
+    String buildArgsStr = parseBuildArgs(script.env.BUILD_IMAGE_ARGS, 'docker')
+    String buildctlArgsStr = parseBuildArgs(script.env.BUILD_IMAGE_ARGS, 'buildctl')
+    
+    // 如果 arg_binary 不为空，合并到参数中
+    if (arg_binary != "") {
+        buildArgsStr += " --build-arg BINARY_NAME=${arg_binary}"
+        buildctlArgsStr += " --opt build-arg:BINARY_NAME=${arg_binary}"
     }
 
     def buildCommand = """
       if [ -n "${baseImage}" ]; then
         sed -i 's@mldockze/openjdk:17.0.10@${baseImage}@g' Dockerfile
       fi
+      
       if command -v buildctl >/dev/null 2>&1; then
+        echo "🔨 Using buildctl..."
         buildctl build \\
           --frontend dockerfile.v0 \\
           --local context=. \\
           --local dockerfile=. \\
+          ${buildctlArgsStr} \\
           --output type=image,name=${image_addr},push=true
       elif command -v docker >/dev/null 2>&1; then
-        docker build -t ${image_addr} . --no-cache && docker push ${image_addr}
+        echo "🐳 Using docker..."
+        docker build -t ${image_addr} ${buildArgsStr} . --no-cache && docker push ${image_addr}
       else
         echo "❌ Buildkit 和 Docker 工具不可用"
         exit 1
       fi
     """.stripIndent().trim()
-
-     // 这里直接让失败抛异常
+    
     script.sh """
       set -euxo pipefail
       ${buildCommand}
     """
-
     script.env.IMAGE_UPLOAD_SUCCESS = 'true'
+  }
+
+  // 辅助函数：解析各种格式的 build args
+  def parseBuildArgs(buildArgs, String format = 'docker') {
+      if (!buildArgs) {
+        return ""
+      }
+      
+      String result = ""
+      
+      if (buildArgs instanceof Map) {
+        // Map 格式
+        buildArgs.each { key, value ->
+          if (format == 'docker') {
+            result += "--build-arg ${key}=${value} "
+          } else {
+            result += "--opt build-arg:${key}=${value} "
+          }
+        }
+      } else {
+        // String 格式
+        String argsStr = buildArgs.toString().trim()
+        
+        if (argsStr.contains('--build-arg')) {
+            if (format == 'docker') {
+              result = argsStr
+            } else {
+              // 转换为 buildctl 格式
+              argsStr.split(/--build-arg\s+/).findAll { it.trim() }.each { arg ->
+                def cleaned = arg.replaceAll(/\s+--.*$/, '').trim()
+                if (cleaned) {
+                  result += "--opt build-arg:${cleaned} "
+                }
+              }
+            }
+        } else {
+          // 简化格式: "KEY1=value1 KEY2=value2"
+          argsStr.split(/\s+/).findAll { it.contains('=') }.each { arg ->
+            if (format == 'docker') {
+              result += "--build-arg ${arg} "
+            } else {
+              result += "--opt build-arg:${arg} "
+            }
+          }
+        }
+      }
+      return result.trim()
   }
 }
