@@ -71,6 +71,7 @@ class Stages implements Serializable {
                   commitId = script.sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
                   script.echo "${Colors.GREEN}成功通过备用分支 ${fallbackBranch} 获取了参数列表，根据要求终止流水线${Colors.RESET}"
                   script.env.USED_FALLBACK_BRANCH = 'true'
+                  script.currentBuild.result = 'ABORTED'
                   return commitId
               } catch (Exception ex) {
                   script.echo "${Colors.RED}拉取备用分支 ${fallbackBranch} 失败: ${ex.message}${Colors.RESET}"
