@@ -33,18 +33,23 @@ class Deployment implements Serializable {
     script.env.KUBE_NAMESPACE = namespaceList.size() == 0 ? 'prod' : namespaceList[0]
   }
 
-  boolean checkBuildArtifactExists(String path) {
-    // find 不会自动展开通配符，所以先提取目录部分，再用 find 判断有无文件
-    def checkScript = """
-      if ! test -n "\$(find ${path} -type f -print -quit)"; then
-        echo '❌ 构建产物为空或不存在: ${path}'
-        exit 1
-      fi
-    """
-
-    def exists = script.sh(script: checkScript, returnStatus: true) == 0
-
-    return exists
+  boolean checkBuildArtifactExists(def path) {
+    // 支持 List 和 String
+    def paths = path instanceof List ? path : [path]
+    for (p in paths) {
+      if (!p) continue
+      // find 不会自动展开通配符，所以先提取目录部分，再用 find 判断有无文件
+      def checkScript = """
+        if ! test -n "\$(find ${p} -type f -print -quit)"; then
+          echo '❌ 构建产物为空或不存在: ${p}'
+          exit 1
+        fi
+      """
+      if (script.sh(script: checkScript, returnStatus: true) != 0) {
+        return false
+      }
+    }
+    return true
   }
 
   // 判断是否需要重启
@@ -174,24 +179,44 @@ class Deployment implements Serializable {
       def remoteDir = script.env.DESTINATION_DIR ?: "/data"
       def remoteHost = script.env.DESTINATION_HOST
       if (!remoteHost) script.error "VM部署需要配置 destination_host"
-      if ((!checkBuildArtifactExists(buildPath))) script.error "构建产物不存在: ${buildPath}"
-      // 安全方法
-      def pathSegments = buildPath.split('/')
-      def dirPrefix = pathSegments[0..<(pathSegments.length - 1)].join('/')
-      def fileName = buildPath.substring(buildPath.lastIndexOf('/') + 1)
+
+      if (!checkBuildArtifactExists(buildPath)) script.error "构建产物不存在: ${buildPath}"
 
       if (!remoteHost?.trim()) {
         script.error "❌ remoteHost 不能为空"
       }
-      
+
       if (pre_command && pre_command != "") {
         executeVMCommand(projectName, remoteHost, remoteDir, pre_command)
       }
-      
-      script.dir(dirPrefix){
+
+      def paths = buildPath instanceof List ? buildPath : [buildPath]
+      def baseDir = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}"
+
+      script.dir(baseDir){
         try {
           def hosts = remoteHost.split(',').collect { it.trim() }.findAll { it }
+
           hosts.each { host ->
+            def transfers = paths.collect { p ->
+              // 将路径转换为相对于 baseDir 的相对路径
+              def relativePath = p.toString().replace(baseDir + "/", "")
+
+              // 还原原有的 removePrefix 逻辑：如果 path 包含目录，则移除目录部分，仅传输文件名
+              // 如果是目录，则传输目录下的内容
+              def removePrefix = ""
+              if (relativePath.contains('/')) {
+                removePrefix = relativePath.substring(0, relativePath.lastIndexOf('/'))
+              }
+
+              return script.sshTransfer(
+                sourceFiles: relativePath,
+                removePrefix: removePrefix,
+                remoteDirectory: "${remoteDir}/${projectName}",
+                makeEmptyDirs: true
+              )
+            }
+
             script.sshPublisher(
               continueOnError: false,
               failOnError: true,
@@ -199,24 +224,16 @@ class Deployment implements Serializable {
                 script.sshPublisherDesc(
                   configName: host,
                   verbose: true,
-                  transfers: [
-                    script.sshTransfer(
-                      sourceFiles: "${fileName}",
-                      // 不安全的方法
-                      // removePrefix: buildPath.split('/').dropRight(1).join('/'),
-                      remoteDirectory: "${remoteDir}/${projectName}",
-                      makeEmptyDirs: true
-                    )
-                  ]
+                  transfers: transfers
                 )
               ]
             )
           }
         } catch (Exception e) {
           script.error "❌ 终止流水线 ${e.getMessage()}"
-        } 
+        }
       }
-      
+
       if (command && command != "") {
         executeVMCommand(projectName, remoteHost, remoteDir, command)
       }
@@ -300,8 +317,13 @@ class Deployment implements Serializable {
     def needRestart = checkIfNeedRestart()
 
     for (mod in module_list) {
-      def subpath = app_module[mod]?.toString() ?: ""
-      def path = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpath}"
+      def subpathRaw = app_module[mod]
+      def subpaths = subpathRaw instanceof List ? subpathRaw : [subpathRaw?.toString() ?: ""]
+      // 将所有路径转换为绝对路径
+      def absolutePaths = subpaths.collect { "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${it}" }
+      // 如果只有一个路径，保持 String 格式以兼容单文件逻辑；否则使用 List
+      def path = absolutePaths.size() == 1 ? absolutePaths[0] : absolutePaths
+
       def project_name
       def manifest_file
       if (script.env.JOB_PREFIX != ""){

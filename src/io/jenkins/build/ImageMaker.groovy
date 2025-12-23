@@ -30,8 +30,10 @@ class ImageMaker implements Serializable {
         if (script.env.SHARED_MODULE.toBoolean() == true) {
           // 共享模块的镜像构建
           def first_mod = module_list[0]
-          def subpath = app_module[first_mod]?.toString() ?: ''
-          def path = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpath}"
+          def subpathRaw = app_module[first_mod]
+          def subpaths = subpathRaw instanceof List ? subpathRaw : [subpathRaw?.toString() ?: ""]
+          // 如果是多路径，使用项目根目录作为工作目录
+          def path = subpaths.size() > 1 ? "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}" : "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpaths[0]}"
           def image_addr = ""
 
           def suffix = script.env.JOB_SUFFIX
@@ -72,8 +74,10 @@ class ImageMaker implements Serializable {
         } else {
           // 独立模块的镜像构建
           for (mod in module_list) {
-            def subpath = app_module[mod]?.toString() ?: ''
-            def path = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpath}"
+            def subpathRaw = app_module[mod]
+            def subpaths = subpathRaw instanceof List ? subpathRaw : [subpathRaw?.toString() ?: ""]
+            // 如果是多路径，使用项目根目录作为工作目录
+            def path = subpaths.size() > 1 ? "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}" : "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpaths[0]}"
             def image_addr = "${script.env.DOCKER_REGISTRY}/${script.env.JOB_PREFIX}-${mod}:${image_tag}"
             def projectName = "${script.env.JOB_PREFIX}-${mod}"
             def dockerfileContent = """
@@ -111,8 +115,10 @@ class ImageMaker implements Serializable {
         if (script.env.SHARED_MODULE.toBoolean() == true) {
           // 共享模块的镜像构建
           def first_mod = module_list[0]
-          def subpath = app_module[first_mod]?.toString() ?: ''
-          def path = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpath}"
+          def subpathRaw = app_module[first_mod]
+          def subpaths = subpathRaw instanceof List ? subpathRaw : [subpathRaw?.toString() ?: ""]
+          // 如果是多路径，使用项目根目录作为工作目录
+          def path = subpaths.size() > 1 ? "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}" : "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpaths[0]}"
           def image_addr = ""
 
           def suffix = script.env.JOB_SUFFIX
@@ -157,8 +163,9 @@ class ImageMaker implements Serializable {
           // 独立模块的镜像构建
           for (mod in module_list) {
             script.echo mod
-            def subpath = app_module[mod]?.toString() ?: ''
-            def path = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpath}"
+            def subpathRaw = app_module[mod]
+            def subpaths = subpathRaw instanceof List ? subpathRaw : [subpathRaw?.toString() ?: ""]
+            def path = subpaths.size() > 1 ? "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}" : "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpaths[0]}"
             def image_addr = "${script.env.DOCKER_REGISTRY}/${script.env.JOB_PREFIX}-${mod}:${image_tag}"
             def projectName = "${script.env.JOB_PREFIX}-${mod}"
             if (script.env.NAME_ONLY.toBoolean() == true ) {
@@ -202,8 +209,10 @@ class ImageMaker implements Serializable {
         if (script.env.SHARED_MODULE.toBoolean() == true) {
           // 共享模块的镜像构建
           def first_mod = module_list[0]
-          def subpath = app_module[first_mod]?.toString() ?: ''
-          def path = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpath}"
+          def subpathRaw = app_module[first_mod]
+          def subpaths = subpathRaw instanceof List ? subpathRaw : [subpathRaw?.toString() ?: ""]
+          // 如果是多路径，使用项目根目录作为工作目录
+          def path = subpaths.size() > 1 ? "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}" : "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpaths[0]}"
           def image_addr = ""
 
           def suffix = script.env.JOB_SUFFIX
@@ -232,8 +241,10 @@ class ImageMaker implements Serializable {
         } else {
           // 独立模块的镜像构建
           for (mod in module_list) {
-            def subpath = app_module[mod]?.toString() ?: ''
-            def path = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpath}"
+            def subpathRaw = app_module[mod]
+            def subpaths = subpathRaw instanceof List ? subpathRaw : [subpathRaw?.toString() ?: ""]
+            // 如果是多路径，使用项目根目录作为工作目录
+            def path = subpaths.size() > 1 ? "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}" : "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpaths[0]}"
             def image_addr = "${script.env.DOCKER_REGISTRY}/${script.env.JOB_PREFIX}-${mod}:${image_tag}"
 
             script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDNTIAL}", targetLocation: "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker/config.json")]) {
