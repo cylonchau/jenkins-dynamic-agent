@@ -183,8 +183,8 @@ class ImageMaker implements Serializable {
               script.withEnv(["DOCKER_CONFIG=${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"]) {
                 try {
                   script.dir(path) {
-                    // 多路径模式下始终覆盖 Dockerfile（因为多个模块共用同一目录）
-                    if (subpaths.size() > 1 || !script.fileExists('Dockerfile')) {
+                    // 当选择了多个模块时，需要始终覆盖 Dockerfile（因为每个模块的内容不同）
+                    if (module_list.size() > 1 || !script.fileExists('Dockerfile')) {
                       script.writeFile file: 'Dockerfile', text: dockerfileContent
                     } else {
                       script.echo "${Colors.YELLOW}⚠️  跳过写入，Dockerfile 已存在${Colors.RESET}"
