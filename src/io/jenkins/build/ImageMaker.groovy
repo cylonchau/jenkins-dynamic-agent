@@ -183,16 +183,17 @@ class ImageMaker implements Serializable {
               script.withEnv(["DOCKER_CONFIG=${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"]) {
                 try {
                   script.dir(path) {
-                    if (!script.fileExists('Dockerfile')) {
+                    // 多路径模式下始终覆盖 Dockerfile（因为多个模块共用同一目录）
+                    if (subpaths.size() > 1 || !script.fileExists('Dockerfile')) {
                       script.writeFile file: 'Dockerfile', text: dockerfileContent
                     } else {
                       script.echo "${Colors.YELLOW}⚠️  跳过写入，Dockerfile 已存在${Colors.RESET}"
                     }
-                      if (script.env.BUILD_IMAGE_ARGS) {
-                        runBuildImage(image_addr.toString(), projectName)
-                      } else {
-                        runBuildImage(image_addr.toString())
-                      }
+                    if (script.env.BUILD_IMAGE_ARGS) {
+                      runBuildImage(image_addr.toString(), projectName)
+                    } else {
+                      runBuildImage(image_addr.toString())
+                    }
                   }
                   script.echo "${Colors.GREEN}✅ 成功构建并推送镜像: ${image_addr}${Colors.RESET}"
                 } catch (Exception e) {
