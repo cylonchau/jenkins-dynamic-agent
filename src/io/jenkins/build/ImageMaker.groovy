@@ -121,6 +121,10 @@ class ImageMaker implements Serializable {
           def path = subpaths.size() > 1 ? "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}" : "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpaths[0]}"
           def image_addr = ""
 
+          if (script.env.SHARED_PATH.toBoolean() == true ) {
+            path = ${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}
+          }
+
           def suffix = script.env.JOB_SUFFIX
           if (suffix && suffix.trim()) {
               image_addr = "${script.env.DOCKER_REGISTRY}/${script.env.JOB_PREFIX}-${suffix.trim()}:${image_tag}"
@@ -171,6 +175,11 @@ class ImageMaker implements Serializable {
             if (script.env.NAME_ONLY.toBoolean() == true ) {
               projectName = "${mod}"
             }
+
+            if (script.env.SHARED_PATH.toBoolean() == true ) {
+              path = ${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}
+            }
+
             def dockerfileContent = """
               FROM debian:bookworm-slim:latest
               WORKDIR /app

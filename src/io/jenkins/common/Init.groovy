@@ -46,6 +46,7 @@ class Init implements Serializable {
     script.env.FORCE_BUILD                      = selectedModuleConfig.force_build?.toString() ?: "false"
     script.env.UPLOAD_FLAG                      = selectedModuleConfig.upload_flag?.toString() ?: "false"
     script.env.NAME_ONLY                        = selectedModuleConfig.name_only?.toString() ?: "false"
+    script.env.SHARED_PATH                      = selectedModuleConfig.shared_path?.toString() ?: "false"
     
     if (script.env.BUILD_PLATFORM?.trim() == "kubernetes" || script.env.BUILD_PLATFORM?.trim() == "docker") {
       script.env.IMAGES      = selectedModuleConfig.images?.toString() ?: ""
