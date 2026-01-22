@@ -124,7 +124,6 @@ class ImageMaker implements Serializable {
           if (script.env.SHARED_PATH.toBoolean() == true ) {
             path = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}"
           }
-
           def suffix = script.env.JOB_SUFFIX
           if (suffix && suffix.trim()) {
               image_addr = "${script.env.DOCKER_REGISTRY}/${script.env.JOB_PREFIX}-${suffix.trim()}:${image_tag}"
@@ -166,7 +165,6 @@ class ImageMaker implements Serializable {
         } else {
           // 独立模块的镜像构建
           for (mod in module_list) {
-            script.echo mod
             def subpathRaw = app_module[mod]
             def subpaths = subpathRaw instanceof List ? subpathRaw : [subpathRaw?.toString() ?: ""]
             def path = subpaths.size() > 1 ? "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}" : "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpaths[0]}"
@@ -179,7 +177,6 @@ class ImageMaker implements Serializable {
             if (script.env.SHARED_PATH.toBoolean() == true ) {
               path = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}"
             }
-
             def dockerfileContent = """
               FROM debian:bookworm-slim:latest
               WORKDIR /app
@@ -192,8 +189,10 @@ class ImageMaker implements Serializable {
               script.withEnv(["DOCKER_CONFIG=${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"]) {
                 try {
                   script.dir(path) {
-                    // 当选择了多个模块时，需要始终覆盖 Dockerfile（因为每个模块的内容不同）
-                    if (module_list.size() > 1 || !script.fileExists('Dockerfile')) {
+                    // 1. 如果 dockerfile 不存在，写入
+                    // 2. 当选择了多个模块时，需要始终覆盖 Dockerfile（因为每个模块的内容不同）
+                    // 3. 如果使用了共享目录，只有在条件1时写入，否则跳过
+                    if ((script.env.SHARED_PATH.toBoolean() == false && module_list.size() > 1) || !script.fileExists('Dockerfile')) {
                       script.writeFile file: 'Dockerfile', text: dockerfileContent
                     } else {
                       script.echo "${Colors.YELLOW}⚠️  跳过写入，Dockerfile 已存在${Colors.RESET}"
