@@ -122,7 +122,7 @@ class ImageMaker implements Serializable {
           def image_addr = ""
 
           if (script.env.SHARED_PATH.toBoolean() == true ) {
-            path = ${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}
+            path = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}"
           }
 
           def suffix = script.env.JOB_SUFFIX
@@ -177,7 +177,7 @@ class ImageMaker implements Serializable {
             }
 
             if (script.env.SHARED_PATH.toBoolean() == true ) {
-              path = ${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}
+              path = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}"
             }
 
             def dockerfileContent = """
