@@ -36,7 +36,7 @@ class KubernetesAgent extends AgentInterface {
     def activeDeadlineSeconds = 0
     def podRetention = script.onFailure()
     def showRawYaml = false
-    if (script.env.LOG_DEBUG == 'true') {
+    if (script.env.LOG_DEBUG?.toBoolean() == true) {
       activeDeadlineSeconds = 360
       showRawYaml = true
     }
@@ -76,7 +76,7 @@ class KubernetesAgent extends AgentInterface {
               script.container("build") {
                 script.build_client.build(script.hook_funcs)
               }
-              if(script.env.SKIP_BUILD_IMG.toBoolean() != true) {
+              if(script.env.SKIP_BUILD_IMG?.toBoolean() != true) {
                 script.container('buildkit') {
                   script.image_builer.buildImage()
                 }
@@ -93,7 +93,7 @@ class KubernetesAgent extends AgentInterface {
     def activeDeadlineSeconds = 0
     def podRetention = script.onFailure()
     def showRawYaml = false
-    if (script.env.LOG_DEBUG == 'true') {
+    if (script.env.LOG_DEBUG?.toBoolean() == true) {
       activeDeadlineSeconds = 360
       showRawYaml = true
     }
@@ -141,7 +141,7 @@ class KubernetesAgent extends AgentInterface {
     def activeDeadlineSeconds = 0
     def podRetention = script.onFailure()
     def showRawYaml = false
-    if (script.env.LOG_DEBUG == 'true') {
+    if (script.env.LOG_DEBUG?.toBoolean() == true) {
       activeDeadlineSeconds = 360
       showRawYaml = true
     }
