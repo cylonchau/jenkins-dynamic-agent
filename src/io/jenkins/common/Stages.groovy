@@ -49,6 +49,7 @@ class Stages implements Serializable {
               script.env.USED_FALLBACK_BRANCH = 'true'
               script.echo "${Colors.BG_CYAN}第一次执行（构建 #${script.currentBuild.number}），终止流水线${Colors.RESET}"
               script.currentBuild.result = 'ABORTED'
+              script.error "终止流水线: 第一次构建仅用于初始化参数"
           }
 
           return commitId
@@ -72,6 +73,7 @@ class Stages implements Serializable {
                   script.echo "${Colors.GREEN}成功通过备用分支 ${fallbackBranch} 获取了参数列表，根据要求终止流水线${Colors.RESET}"
                   script.env.USED_FALLBACK_BRANCH = 'true'
                   script.currentBuild.result = 'ABORTED'
+                  script.error "终止流水线: 已通过备用分支更新参数"
                   return commitId
               } catch (Exception ex) {
                   script.echo "${Colors.RED}拉取备用分支 ${fallbackBranch} 失败: ${ex.message}${Colors.RESET}"

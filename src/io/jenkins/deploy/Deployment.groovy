@@ -326,23 +326,12 @@ class Deployment implements Serializable {
 
       def project_name
       def manifest_file
-      if (script.env.JOB_PREFIX != ""){
-        if (script.env.MANIFEST_PREFIX != ""){
-          manifest_file = "${script.env.ROOT_WORKSPACE}/manifests/${script.env.JOB_PREFIX}-${script.env.MANIFEST_PREFIX}-${mod}.yaml"
-          project_name = "${script.env.JOB_PREFIX}-${script.env.MANIFEST_PREFIX}-${mod}"
-        } else {
-          manifest_file = "${script.env.ROOT_WORKSPACE}/manifests/${script.env.JOB_PREFIX}-${mod}.yaml"
-          project_name = "${script.env.JOB_PREFIX}-${mod}"
-        }
+      if (script.env.MANIFEST_PREFIX != "") {
+        project_name = CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, "${script.env.MANIFEST_PREFIX}-${mod}")
       } else {
-        if (script.env.MANIFEST_PREFIX != ""){
-          manifest_file = "${script.env.ROOT_WORKSPACE}/manifests/${script.env.MANIFEST_PREFIX}-${mod}.yaml"
-          project_name = "${mod}"
-        } else {
-          manifest_file = "${script.env.ROOT_WORKSPACE}/manifests/${mod}.yaml"
-          project_name = "${mod}"
-        }
+        project_name = CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, mod)
       }
+      manifest_file = "${script.env.ROOT_WORKSPACE}/manifests/${project_name}.yaml"
 
       try {
         if (script.env.PLATFORM == "kubernetes") {
@@ -352,14 +341,9 @@ class Deployment implements Serializable {
           def image_addr
           if (script.env.SHARED_MODULE == 'true') {
             
-            def suffix = script.env.JOB_SUFFIX
-            if (suffix && suffix.trim()) {
-                image_addr = "${script.env.DOCKER_REGISTRY}/${script.env.JOB_PREFIX}-${suffix.trim()}:${image_tag}"
-            } else {
-                image_addr = "${script.env.DOCKER_REGISTRY}/${script.env.JOB_PREFIX}:${image_tag}"
-            }
+            image_addr = "${script.env.DOCKER_REGISTRY}/${CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, suffix)}:${image_tag}"
           } else {
-            image_addr = "${script.env.DOCKER_REGISTRY}/${script.env.JOB_PREFIX}-${mod}:${image_tag}"
+            image_addr = "${script.env.DOCKER_REGISTRY}/${CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, mod)}:${image_tag}"
           }
 
           if (needRestart) {

@@ -113,13 +113,7 @@ class CommonTools implements Serializable {
     
     switch (stageName) {
       case 'compile':
-        return false
-          // return fallback ||
-          //     (script.env.CURRENT_COMMIT_ID == script.env.PREVIOUS_COMMIT_ID) &&
-          //     (script.env.SAME_MODULES?.toBoolean() == true) &&
-          //     (script.env.PREVIOUS_BUILD_SUCCESS?.toBoolean() == true) &&
-          //     (script.env.PREVIOUS_IMAGE_UPLOADED?.toBoolean() == true) &&
-          //     (script.env.FORCE_BUILD?.toBoolean() == false)
+        return fallback
       case 'deploy':
         return fallback || script.env.SKIP_DEPLOY_STAGE?.toBoolean() == true
       default:
@@ -169,6 +163,18 @@ class CommonTools implements Serializable {
       }
       return false
     }
+  }
+
+
+  /**
+   * 辅助函数：根据前缀和名称获取最终项目名
+   * 如果 prefix 为空，只返回 name，不加连字符
+   */
+  def getProjectName(String prefix, String name) {
+    if (prefix && prefix.trim()) {
+      return "${prefix.trim()}-${name.trim()}"
+    }
+    return name.trim()
   }
 
 }
