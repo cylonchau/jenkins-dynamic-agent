@@ -171,10 +171,12 @@ class CommonTools implements Serializable {
    * 如果 prefix 为空，只返回 name，不加连字符
    */
   def getProjectName(String prefix, String name) {
-    if (prefix && prefix.trim()) {
-      return "${prefix.trim()}-${name.trim()}"
+    def p = prefix?.trim() ?: ""
+    def n = name?.trim() ?: ""
+    if (p && n) {
+      return "${p}-${n}"
     }
-    return name.trim()
+    return p ?: n
   }
 
 }

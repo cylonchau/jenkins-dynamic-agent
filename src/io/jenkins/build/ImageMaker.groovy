@@ -2,6 +2,7 @@
 package io.jenkins.build
 
 import io.jenkins.common.Colors
+import io.jenkins.common.CommonTools
 
 class ImageMaker implements Serializable {
   private transient script
@@ -34,21 +35,15 @@ class ImageMaker implements Serializable {
           def subpaths = subpathRaw instanceof List ? subpathRaw : [subpathRaw?.toString() ?: ""]
           // 如果是多路径，使用项目根目录作为工作目录
           def path = subpaths.size() > 1 ? "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}" : "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpaths[0]}"
-          def image_addr = ""
 
-          def suffix = script.env.JOB_SUFFIX
-          if (suffix && suffix.trim()) {
-              image_addr = "${script.env.DOCKER_REGISTRY}/${io.jenkins.common.CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, suffix)}:${image_tag}"
-          } else {
-              image_addr = "${script.env.DOCKER_REGISTRY}/${io.jenkins.common.CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, "")}:${image_tag}"
-          }
+          def image_addr = "${script.env.DOCKER_REGISTRY}/${CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, script.env.JOB_SUFFIX)}:${image_tag}"
 
           def projectName = script.env.JOB_PREFIX?.trim() ?: ""
           def dockerfileContent = """
             FROM nginx:1.22
-            RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list && \
-                  apt update && apt install wget && \
-                  ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
+            RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list && \\
+                  apt update && apt install wget && \\
+                  ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \\
                   rm -rf /var/cache/apt/*
             COPY dist/ /usr/share/nginx/html
           """.stripIndent()
@@ -78,12 +73,14 @@ class ImageMaker implements Serializable {
             def subpaths = subpathRaw instanceof List ? subpathRaw : [subpathRaw?.toString() ?: ""]
             // 如果是多路径，使用项目根目录作为工作目录
             def path = subpaths.size() > 1 ? "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}" : "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpaths[0]}"
-            def projectName = io.jenkins.common.CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, mod); def image_addr = "${script.env.DOCKER_REGISTRY}/${projectName}:${image_tag}"
+            def projectName = CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, mod)
+            def image_addr = "${script.env.DOCKER_REGISTRY}/${projectName}:${image_tag}"
+            
             def dockerfileContent = """
               FROM nginx:1.22
-              RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list && \
-                    apt update && apt install wget && \
-                    ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
+              RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list && \\
+                    apt update && apt install wget && \\
+                    ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \\
                     rm -rf /var/cache/apt/*
               COPY dist/ /usr/share/nginx/html
             """.stripIndent()
@@ -118,17 +115,12 @@ class ImageMaker implements Serializable {
           def subpaths = subpathRaw instanceof List ? subpathRaw : [subpathRaw?.toString() ?: ""]
           // 如果是多路径，使用项目根目录作为工作目录
           def path = subpaths.size() > 1 ? "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}" : "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpaths[0]}"
-          def image_addr = ""
 
           if (script.env.SHARED_PATH.toBoolean() == true ) {
             path = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}"
           }
-          def suffix = script.env.JOB_SUFFIX
-          if (suffix && suffix.trim()) {
-              image_addr = "${script.env.DOCKER_REGISTRY}/${io.jenkins.common.CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, suffix)}:${image_tag}"
-          } else {
-              image_addr = "${script.env.DOCKER_REGISTRY}/${io.jenkins.common.CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, "")}:${image_tag}"
-          }
+          
+          def image_addr = "${script.env.DOCKER_REGISTRY}/${CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, script.env.JOB_SUFFIX)}:${image_tag}"
 
           def projectName = script.env.JOB_PREFIX?.trim() ?: ""
           def dockerfileContent = """
@@ -167,8 +159,9 @@ class ImageMaker implements Serializable {
             def subpathRaw = app_module[mod]
             def subpaths = subpathRaw instanceof List ? subpathRaw : [subpathRaw?.toString() ?: ""]
             def path = subpaths.size() > 1 ? "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}" : "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpaths[0]}"
-            def projectName = io.jenkins.common.CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, mod); def image_addr = "${script.env.DOCKER_REGISTRY}/${projectName}:${image_tag}"
-            def projectName = io.jenkins.common.CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, mod)
+            def projectName = CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, mod)
+            def image_addr = "${script.env.DOCKER_REGISTRY}/${projectName}:${image_tag}"
+
             if (script.env.NAME_ONLY.toBoolean() == true ) {
               projectName = "${mod}"
             }
@@ -221,14 +214,8 @@ class ImageMaker implements Serializable {
           def subpaths = subpathRaw instanceof List ? subpathRaw : [subpathRaw?.toString() ?: ""]
           // 如果是多路径，使用项目根目录作为工作目录
           def path = subpaths.size() > 1 ? "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}" : "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpaths[0]}"
-          def image_addr = ""
 
-          def suffix = script.env.JOB_SUFFIX
-          if (suffix && suffix.trim()) {
-              image_addr = "${script.env.DOCKER_REGISTRY}/${io.jenkins.common.CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, suffix)}:${image_tag}"
-          } else {
-              image_addr = "${script.env.DOCKER_REGISTRY}/${io.jenkins.common.CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, "")}:${image_tag}"
-          }
+          def image_addr = "${script.env.DOCKER_REGISTRY}/${CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, script.env.JOB_SUFFIX)}:${image_tag}"
 
           // 根据不同编译环境的上下文执行
           // 文件操作必须为 job 的 ROOT_WORKSPACE 下，否则没权限
@@ -253,7 +240,8 @@ class ImageMaker implements Serializable {
             def subpaths = subpathRaw instanceof List ? subpathRaw : [subpathRaw?.toString() ?: ""]
             // 如果是多路径，使用项目根目录作为工作目录
             def path = subpaths.size() > 1 ? "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}" : "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpaths[0]}"
-            def projectName = io.jenkins.common.CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, mod); def image_addr = "${script.env.DOCKER_REGISTRY}/${projectName}:${image_tag}"
+            def projectName = CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, mod)
+            def image_addr = "${script.env.DOCKER_REGISTRY}/${projectName}:${image_tag}"
 
             script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDNTIAL}", targetLocation: "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker/config.json")]) {
               script.withEnv(["DOCKER_CONFIG=${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"]) {
@@ -345,8 +333,8 @@ class ImageMaker implements Serializable {
               result = argsStr
             } else {
               // 转换为 buildctl 格式
-              argsStr.split(/--build-arg\s+/).findAll { it.trim() }.each { arg ->
-                def cleaned = arg.replaceAll(/\s+--.*$/, '').trim()
+              argsStr.split(/--build-arg\\s+/).findAll { it.trim() }.each { arg ->
+                def cleaned = arg.replaceAll(/\\s+--.*$/, '').trim()
                 if (cleaned) {
                   result += "--opt build-arg:${cleaned} "
                 }
@@ -354,7 +342,7 @@ class ImageMaker implements Serializable {
             }
         } else {
           // 简化格式: "KEY1=value1 KEY2=value2"
-          argsStr.split(/\s+/).findAll { it.contains('=') }.each { arg ->
+          argsStr.split(/\\s+/).findAll { it.contains('=') }.each { arg ->
             if (format == 'docker') {
               result += "--build-arg ${arg} "
             } else {

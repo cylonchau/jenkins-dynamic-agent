@@ -58,7 +58,7 @@ class AgentManager implements Serializable {
         def subpath = app_module[first_mod]?.toString() ?: ''
         def path = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpath}"
 
-        def repoName = CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, suffix ?: "")
+        def repoName = CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, script.env.JOB_SUFFIX ?: "")
 
         exists = CommonTools.getInstance(script)
                                 .checkHarborTagExists(repoName)

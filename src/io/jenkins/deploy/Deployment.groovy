@@ -341,7 +341,7 @@ class Deployment implements Serializable {
           def image_addr
           if (script.env.SHARED_MODULE == 'true') {
             
-            image_addr = "${script.env.DOCKER_REGISTRY}/${CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, suffix)}:${image_tag}"
+            image_addr = "${script.env.DOCKER_REGISTRY}/${CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, script.env.JOB_SUFFIX)}:${image_tag}"
           } else {
             image_addr = "${script.env.DOCKER_REGISTRY}/${CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, mod)}:${image_tag}"
           }
