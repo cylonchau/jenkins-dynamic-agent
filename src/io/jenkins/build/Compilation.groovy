@@ -27,6 +27,12 @@ class Compilation implements Serializable {
       def programming = script.env.PROGRAMMING
       def buildCommand = script.env.BUILD_COMMAND
       def setting_config = script.readJSON text: script.env.SELECTED_MODULE_CONFIG_JSON
+      
+      def isRelease = (script.env.DOWNLOAD_FROM_RELEASE?.toString() == 'true')
+      if (isRelease) {
+        downloadFromRelease()
+        return
+      }
 
       if (!buildCommand) {
         script.echo "${Colors.YELLOW}⚠️ 没有传入编译命令, 跳过编译${Colors.RESET}"
@@ -116,6 +122,79 @@ EOF
       }
       script.env.PREVIOUS_BUILD_SUCCESS = script.env.PREVIOUS_BUILD_SUCCESS == 'true' ? 'true' : 'true'
     }
+  }
+
+  def downloadFromRelease() {
+    def versionParam = script.params.FORCE_RELEASE_VERSION
+    if (!versionParam) {
+      script.error "❌ 开启了 Release 下载，但未提供 FORCE_RELEASE_VERSION"
+    }
+
+    def gitRepo = script.env.GIT_REPO.replace('.git', '')
+    // 兼容多种格式，用户可能输入 tag/asset 或直接是全路径（如果拼接逻辑允许）
+    // 根据用户需求：下载，从参数 master/xxxx-xxxx-ubuntu22.04-x86_64.tar.gz 然后拼接git参数的地址进行下载
+    def parts = versionParam.split('/')
+    if (parts.size() < 2) {
+      script.error "❌ FORCE_RELEASE_VERSION 格式不正确，期望格式为 tag/asset_name，例如: master/minio-20240423.tar.gz"
+    }
+    
+    def tag = parts[0]
+    def asset = parts[1]
+    def downloadUrl = "${gitRepo}/releases/download/${tag}/${asset}"
+
+    script.echo "${Colors.BRIGHT_CYAN}======================================= 📥 开始下载 Release ========================================${Colors.RESET}"
+    script.echo "🔗 下载地址: ${downloadUrl}"
+
+    script.sh """
+      set -e
+      curl -L -O ${downloadUrl}
+    """
+
+    // 获取模块名和目标路径
+    def module_list = script.params.MODULES?.split(',')
+    def app_module = script.readJSON text: script.env.APP_MODULE
+    if (!module_list || module_list.size() == 0) {
+      script.error "❌ 未选择模块"
+    }
+    def mod = module_list[0] // 假设 Release 下载对应第一个选中的模块
+    def targetPath = app_module[mod]?.toString()
+    if (!targetPath) {
+      script.error "❌ 未能找到模块 ${mod} 的对应路径配置"
+    }
+
+    // 识别是否需要解压并移动到目标路径
+    if (asset.endsWith('.tar.gz') || asset.endsWith('.tgz')) {
+      script.echo "📦 正在解压 ${asset} 并移动到 ${targetPath}..."
+      script.sh """
+        set -e
+        mkdir -p tmp_extract
+        tar -xzf ${asset} -C tmp_extract
+        mkdir -p \$(dirname ${targetPath})
+        # 查找解压出的二进制文件（排除目录），假设只有一个或以模块名命名
+        find tmp_extract -type f | head -n 1 | xargs -I {} mv {} ${targetPath}
+        rm -rf tmp_extract ${asset}
+      """
+    } else if (asset.endsWith('.zip')) {
+      script.echo "📦 正在解压 ${asset} 并移动到 ${targetPath}..."
+      script.sh """
+        set -e
+        mkdir -p tmp_extract
+        unzip ${asset} -d tmp_extract
+        mkdir -p \$(dirname ${targetPath})
+        find tmp_extract -type f | head -n 1 | xargs -I {} mv {} ${targetPath}
+        rm -rf tmp_extract ${asset}
+      """
+    } else {
+      // 如果不是压缩包，直接移动/重命名
+      script.echo "🚚 正在将 ${asset} 移动到 ${targetPath}..."
+      script.sh """
+        set -e
+        mkdir -p \$(dirname ${targetPath})
+        mv ${asset} ${targetPath}
+      """
+    }
+
+    script.echo "${Colors.BRIGHT_CYAN}======================================= 📥 下载并处理完成 ========================================${Colors.RESET}"
   }
 
 }

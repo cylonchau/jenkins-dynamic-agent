@@ -333,7 +333,7 @@ class ImageMaker implements Serializable {
               result = argsStr
             } else {
               // 转换为 buildctl 格式
-              argsStr.split(/--build-arg\\s+/).findAll { it.trim() }.each { arg ->
+              argsStr.split(/--build-arg[\s=]+/).findAll { it.trim() }.each { arg ->
                 def cleaned = arg.replaceAll(/\\s+--.*$/, '').trim()
                 if (cleaned) {
                   result += "--opt build-arg:${cleaned} "

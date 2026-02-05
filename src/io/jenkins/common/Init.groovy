@@ -47,6 +47,7 @@ class Init implements Serializable {
     script.env.UPLOAD_FLAG                      = selectedModuleConfig.upload_flag?.toString() ?: "false"
     script.env.NAME_ONLY                        = selectedModuleConfig.name_only?.toString() ?: "false"
     script.env.SHARED_PATH                      = selectedModuleConfig.shared_path?.toString() ?: "false"
+    script.env.DOWNLOAD_FROM_RELEASE            = selectedModuleConfig.download_from_release?.toString() ?: "false"
     
     if (script.env.BUILD_PLATFORM?.trim() == "kubernetes" || script.env.BUILD_PLATFORM?.trim() == "docker") {
       script.env.IMAGES      = selectedModuleConfig.images?.toString() ?: ""
@@ -82,11 +83,7 @@ class Init implements Serializable {
     script.env.DEFAULT_BRANCH       = globalConfig.default_branch?.toString() ?: ""
     script.env.REGISTRY_CREDNTIAL   = globalConfig.registry_credential?.toString() ?: ""
     script.env.GIT_CREDNTIAL        = globalConfig.git_credential?.toString() ?: ""
-<<<<<<< HEAD
-    script.env.IMG_REGISTRY         = globalConfig.img_registry?.toString() ?: "https://hub.docker.io"
-=======
     script.env.IMG_REGISTRY         = globalConfig.img_registry?.toString() ?: "https://docker.io"
->>>>>>> e9407ab (fix: 获取的错误镜像tag)
     script.env.IMG_REGISTRY_USER    = globalConfig.img_registry_user?.toString() ?: ""
     script.env.IMG_REGISTRY_PWD     = globalConfig.img_registry_pwd?.toString() ?: ""
     
