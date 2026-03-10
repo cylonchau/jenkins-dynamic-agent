@@ -24,11 +24,17 @@ pipeline {
           this.agent_mgr        = AgentManager.init(this)
           this.hook_funcs       = load 'utils/hook.groovy'
           init.initGlobalVariables()
+          if (env.DOWNLOAD_FROM_RELEASE == 'true') {
+            env.CURRENT_COMMIT_ID = "release-download"
+          }
         }
       }
     }
 
     stage('拉取代码') {
+      when {
+        expression { !common.shouldSkipStage("checkout") }
+      }
       steps {
         script {
           def PROJECT_DIR = "${env.ROOT_WORKSPACE}/${env.MAIN_PROJECT}"

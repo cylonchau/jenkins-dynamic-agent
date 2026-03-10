@@ -57,9 +57,9 @@ class CommonTools implements Serializable {
       def values = cleanedValue.split(',').collect { it.trim() }
       // 校验每个子值
       for (def v : values) {
-        if (!v.matches(/^[a-zA-Z0-9_.-]+$/)) {
+        if (!v.matches(/^[a-zA-Z0-9_.\/\-]+$/)) {
           script.currentBuild.result = 'ABORTED'
-          script.error("参数 ${paramName} 中的值 '${v}' 无效，只允许字母、数字、下划线、连字符、点")
+          script.error("参数 ${paramName} 中的值 '${v}' 无效，只允许字母、数字、下划线、点、斜杠、连字符")
         }
       }
     }
@@ -107,11 +107,15 @@ class CommonTools implements Serializable {
   
   def shouldSkipStage(stageName = null) {
     def fallback = script.env.USED_FALLBACK_BRANCH == 'true'
+    def isRelease = (script.env.DOWNLOAD_FROM_RELEASE?.toString() == 'true')
+    
     if (!stageName) {
       return fallback
     }
     
     switch (stageName) {
+      case 'checkout':
+        return isRelease
       case 'compile':
         return fallback
       case 'deploy':
