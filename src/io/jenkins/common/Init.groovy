@@ -48,6 +48,10 @@ class Init implements Serializable {
     script.env.NAME_ONLY                        = selectedModuleConfig.name_only?.toString() ?: "false"
     script.env.SHARED_PATH                      = selectedModuleConfig.shared_path?.toString() ?: "false"
     script.env.DOWNLOAD_FROM_RELEASE            = selectedModuleConfig.download_from_release?.toString() ?: "false"
+    script.env.ONLY_COMPILE                     = selectedModuleConfig.only_compile?.toString() ?: "false"
+    if (selectedModuleConfig.only_compile?.toString() == "true") {
+      script.env.SKIP_DEPLOY_STAGE              = (script.params.ONLY_COMPILE != null) ? (script.params.ONLY_COMPILE.toBoolean() ? "true" : "false") : "false"
+    }
     
     if (script.env.BUILD_PLATFORM?.trim() == "kubernetes" || script.env.BUILD_PLATFORM?.trim() == "docker") {
       script.env.IMAGES      = selectedModuleConfig.images?.toString() ?: ""
@@ -113,12 +117,32 @@ class Init implements Serializable {
         useRepository: "${script.env.GIT_REPO}",
       )
     ]
+
+    if (selectedModuleConfig.only_compile?.toBoolean() == true) {
+      fixedParams << [
+        $class: 'BooleanParameterDefinition',
+        name: 'ONLY_COMPILE',
+        description: '仅编译，跳过部署',
+        defaultValue: true
+      ]
+    }
+  
     script.properties([
       script.parameters(fixedParams + paramsList)
     ])
 
     script.params.each { paramName, paramValue ->
       script.common.ex(paramName, paramValue)
+    }
+
+    // 仅编译模式下，限制只能选择一个模块
+    if (script.env.SKIP_DEPLOY_STAGE == "true") {
+      def modulesList = script.params.MODULES?.split(',')?.collect { it.trim() }?.findAll { it }
+      if (modulesList && modulesList.size() > 1) {
+        script.currentBuild.result = 'ABORTED'
+        script.echo "${Colors.YELLOW}⚠️ [@only_compile] 模式下，每次只允许选择一个模块！当前选择了: ${modulesList.size()} 个${Colors.RESET}"
+        return
+      }
     }
 
     // 获取上次构建信息
@@ -228,6 +252,7 @@ class Init implements Serializable {
           script.error "Unsupported choices format for parameter ${param.name}: ${param.choices.getClass()}"
         }
       }
+
 
       switch (param.type) {
         case "multi-choice":

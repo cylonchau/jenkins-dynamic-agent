@@ -64,12 +64,38 @@ class Compilation implements Serializable {
         switch (programming) {
           case 'java':
             script.configFileProvider([script.configFile(fileId: "${script.env.MAVEN_SETTINGS}", targetLocation: "settings.xml")]) {
+              def finalBuildCommand = buildCommand
+              if (script.env.ONLY_COMPILE == 'true') {
+                def modulesList = script.params.MODULES?.split(',')
+                if (modulesList) {
+                  def appModule = script.readJSON text: script.env.APP_MODULE
+                  def explicitNames = setting_config.module_names ?: [:]
+                  def plList = []
+                  
+                  modulesList.each { mod ->
+                    def explicitName = explicitNames[mod]
+                    if (explicitName) {
+                      plList << explicitName
+                    } else {
+                      def path = appModule[mod]?.toString()
+                      if (path) {
+                        plList << path.split('/')[0]
+                      }
+                    }
+                  }
+                  if (plList) {
+                    finalBuildCommand = "${finalBuildCommand} -pl ${plList.join(',')}"
+                    script.echo "${Colors.CYAN}已注入编译参数: -pl ${plList.join(',')}${Colors.RESET}"
+                  }
+                }
+              }
+              
               script.sh """
                 set -e
-                ${buildCommand}
+                ${finalBuildCommand}
               """
             }
-            break
+            break;
           case 'rust':
             script.withCredentials([script.usernamePassword(credentialsId: "${script.env.GIT_CREDNTIAL}", usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
               def user = script.env.GIT_USER
@@ -87,7 +113,7 @@ EOF
                 ${buildCommand}
               """
             }
-            break
+            break;
           default:
             script.sh """
               set -e

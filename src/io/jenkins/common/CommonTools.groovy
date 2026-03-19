@@ -108,9 +108,14 @@ class CommonTools implements Serializable {
   def shouldSkipStage(stageName = null) {
     def fallback = script.env.USED_FALLBACK_BRANCH == 'true'
     def isRelease = (script.env.DOWNLOAD_FROM_RELEASE?.toString() == 'true')
+    def aborted = script.currentBuild.result == 'ABORTED'
     
     if (!stageName) {
-      return fallback
+      return fallback || aborted
+    }
+    
+    if (aborted) {
+      return true
     }
     
     switch (stageName) {

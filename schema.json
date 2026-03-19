@@ -269,5 +269,55 @@
         "inside_args": {
             "build": "-v /tmp/m2:/root/.m2/"
         }
+    },
+    "compile_only-example(java)": {
+        "programming": "java",
+        "git": "https://github.com/{project_name}.git",
+        "build_command": "mvn clean package -Dmaven.test.skip=true -U -Pdev --settings settings.xml",
+        "compile_only": true,
+        "build_pre": [],
+        "build_post": [
+            {
+                "function": "uploadNexusArtifactUploader",
+                "args": {
+                    "file": "example.com/target/example.com-1.0-SNAPSHOT.jar",
+                    "artifact_id": "example.com",
+                    "group": "example",
+                    "subfix": "1.0-SNAPSHOT"
+                }
+            }
+        ],
+        "build_platform": "kubernetes",
+        "platform": "kubernetes",
+        "parameters": [
+            {
+                "type": "multi-choice",
+                "must": true,
+                "name": "MODULES",
+                "description": "选择模块(多选)",
+                "choices": {
+                    "module_1": "{if nil, use repo's dockerfile, if not null, use this artifact path}",
+                    "module_2": "",
+                    "module_3": "",
+                    "module_4": "",
+                    "module_5": "",
+                    "module_6": ""
+                }
+            }
+        ],
+        "docker_registry_url_prefix": "hub.docker.io/wallet-test",
+        "base_image": "",
+        "job_prefix": "{deploy to destnation will add path/k8s deployment prefix}",
+        "manifest_prefix": "{this name will filling k8s manifest name}",
+        "exec_command": "",
+        "upload_flag": "true",
+        "shared_module": "false",
+        "images": {
+            "build": "hub.docker.io/base/rust-base:latest",
+            "deploy": "bitnami/kubectl"
+        },
+        "inside_args": {
+            "build": "-v /tmp/m2:/root/.m2/"
+        }
     }
 }

@@ -372,6 +372,10 @@ class Deployment implements Serializable {
 
   // 发布阶段的入口函数
   def mainDeployStage() {
+    if (script.env.SKIP_DEPLOY_STAGE?.toBoolean() == true) {
+      script.echo "${Colors.YELLOW}⚠️ 跳过部署阶段 (only_compile)${Colors.RESET}"
+      return
+    }
     // 封装调用逻辑
     if (script.env.PLATFORM == "kubernetes") {
       // 只能使用一次withCredentials 块处理 KUEBCONFIG 变量
