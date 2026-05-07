@@ -52,14 +52,15 @@ class Init implements Serializable {
     if (selectedModuleConfig.only_compile?.toString() == "true") {
       script.env.SKIP_DEPLOY_STAGE              = (script.params.ONLY_COMPILE != null) ? (script.params.ONLY_COMPILE.toBoolean() ? "true" : "false") : "false"
     }
-    
+
+
     if (script.env.BUILD_PLATFORM?.trim() == "kubernetes" || script.env.BUILD_PLATFORM?.trim() == "docker") {
       script.env.IMAGES      = selectedModuleConfig.images?.toString() ?: ""
       script.env.INSIDE_ARGS = selectedModuleConfig.inside_args?.toString() ?: ""
     }
 
     if (script.env.PLATFORM?.trim() == "vm"){
-      script.env.DESTINATION_DIR     = selectedModuleConfig.destination_dir?.toString() ?: ""
+      script.env.DESTINATION_DIR     = (selectedModuleConfig.destination_dir ?: selectedModuleConfig.destnation_dir)?.toString() ?: ""
       script.env.DESTINATION_HOST    = selectedModuleConfig.destination_host?.toString() ?: ""
       script.env.EXEC_COMMAND        = selectedModuleConfig.exec_command?.toString() ?: ""
       script.env.PRE_EXEC_COMMAND    = selectedModuleConfig.pre_exec_command?.toString() ?: ""
@@ -101,7 +102,7 @@ class Init implements Serializable {
     script.env.DEPLOY_CLUSTER = globalConfig.deploy_cluster
 
     // 初始化菜单
-    def paramsList = script.init.generateDynamicProperties(selectedModuleConfig)
+    def paramsList = generateDynamicProperties(selectedModuleConfig)
     def fixedParams = [
       script.gitParameter(
         branch: '',
@@ -115,7 +116,7 @@ class Init implements Serializable {
         tagFilter: '*',
         type: 'PT_BRANCH_TAG',
         useRepository: "${script.env.GIT_REPO}",
-      )
+      ),
     ]
 
     if (selectedModuleConfig.only_compile?.toBoolean() == true) {
@@ -126,10 +127,26 @@ class Init implements Serializable {
         defaultValue: true
       ]
     }
-  
+
     script.properties([
       script.parameters(fixedParams + paramsList)
     ])
+
+    if (selectedModuleConfig.modules) {
+      script.env.APP_MODULE = JsonOutput.toJson(selectedModuleConfig.modules)
+      // 如果只有一个模块且在顶级定义，自动锁定该模块，避免 params.MODULES 为空导致报错
+      if (selectedModuleConfig.modules.size() == 1) {
+          script.env.MODULES = selectedModuleConfig.modules.keySet().iterator().next()
+      }
+    } else {
+      // 兜底逻辑：如果没有配置 modules，则检查 source 字段
+      def hasModulesParam = selectedModuleConfig.parameters?.any { it.name == 'MODULES' }
+      if (!hasModulesParam) {
+          def sourcePath = selectedModuleConfig.source?.toString()?.trim() ?: ""
+          script.env.APP_MODULE = JsonOutput.toJson(["": sourcePath])
+          script.env.MODULES = "" // 模块名为空，保持部署名为 job_prefix
+      }
+    }
 
     script.params.each { paramName, paramValue ->
       script.common.ex(paramName, paramValue)
@@ -241,7 +258,7 @@ class Init implements Serializable {
   }
 
   def generateDynamicProperties(config) {
-    return config.parameters.collect { param ->
+    def params = config.parameters ? config.parameters.collect { param ->
       def resolveChoices = {
         if (param.choices instanceof Map) {
           script.env.APP_MODULE = JsonOutput.toJson(param.choices)
@@ -252,7 +269,6 @@ class Init implements Serializable {
           script.error "Unsupported choices format for parameter ${param.name}: ${param.choices.getClass()}"
         }
       }
-
 
       switch (param.type) {
         case "multi-choice":
@@ -308,6 +324,35 @@ class Init implements Serializable {
         default:
           script.error "Unsupported parameter type: ${param.type}"
       }
+    } : []
+
+    // 如果配置了顶级 modules 字段，且模块数量大于 1，自动添加 MODULES 参数
+    if (config.modules && config.modules.size() > 1) {
+        def choicesList = config.modules.keySet() as List
+        params << [
+            $class: 'ChoiceParameter',
+            name: 'MODULES',
+            description: '选择模块(多选)',
+            choiceType: 'PT_CHECKBOX',
+            filterable: true,
+            filterLength: 1,
+            randomName: "choice-parameter-modules-${UUID.randomUUID().toString()}",
+            script: [
+                $class: 'GroovyScript',
+                script: [
+                    classpath: [],
+                    sandbox: true,
+                    script: "return ${groovy.json.JsonOutput.toJson(choicesList)}"
+                ],
+                fallbackScript: [
+                    classpath: [],
+                    sandbox: true,
+                    script: "return ['加载失败']"
+                ]
+            ]
+        ]
     }
+    
+    return params
   }
 }

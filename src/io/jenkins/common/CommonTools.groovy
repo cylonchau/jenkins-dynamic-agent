@@ -39,14 +39,22 @@ class CommonTools implements Serializable {
     }
 
     def ex(String paramName, def paramValue) {
-      
-      def paramConfig = script.selectedModuleConfig.parameters.find { it.name == paramName }
+      def selectedModuleConfig = script.selectedModuleConfig
+      def paramConfig = selectedModuleConfig.parameters?.find { it.name == paramName }
       def cleanedValue = paramValue?.toString()?.trim()
 
+      // 校验逻辑：
+      // 1. 如果是 parameters 里配置的 must=true
+      // 2. 如果是顶级 modules 字段配置的（自动生成），默认强制要求最少选一个
+      def isMust = paramConfig?.must?.toBoolean() == true
+      if (paramName == 'MODULES' && selectedModuleConfig.modules) {
+        isMust = true
+      }
+
       // must 校验
-      if (paramConfig?.must?.toBoolean() == true && !cleanedValue) {
+      if (isMust && !cleanedValue) {
         script.currentBuild.result = 'ABORTED'
-        script.error("参数 ${paramName} 无效：不能为空（配置 must=true）")
+        script.error("参数 ${paramName} 无效：不能为空")
       }
 
       // 非 must 的情况下被允许

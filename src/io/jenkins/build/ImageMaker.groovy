@@ -20,7 +20,7 @@ class ImageMaker implements Serializable {
   }
 
   def buildImage() {
-    def module_list = script.params.MODULES.split(',')
+    def module_list = (script.params.MODULES ?: script.env.MODULES ?: '').split(',')
     def app_module = script.readJSON text: script.env.APP_MODULE
     def image_tag = script.env.CURRENT_COMMIT_ID
 

@@ -319,5 +319,28 @@
         "inside_args": {
             "build": "-v /tmp/m2:/root/.m2/"
         }
-    }
+    },
+    "new-module-example": {
+        "programming": "java",
+        "git": "http://github.com/wallet/server/example",
+        "build_command": "mvn clean package -Dmaven.test.skip=true -U --settings settings.xml",
+        "modules": {
+            "api": "com.wallet.web/com.wallet.web.api/target/app.jar",
+            "agent": "com.wallet.web/com.wallet.web.agent/target/app.jar"
+        },
+        "parameters": [
+            {
+                "type": "choice",
+                "must": true,
+                "name": "ChainCode",
+                "description": "选择链名称",
+                "choices": [
+                    "tron",
+                    "eth"
+                ]
+            }
+        ],
+        "build_platform": "docker",
+        "platform": "vm"
+    },
 }

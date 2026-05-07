@@ -66,8 +66,8 @@ class Compilation implements Serializable {
             script.configFileProvider([script.configFile(fileId: "${script.env.MAVEN_SETTINGS}", targetLocation: "settings.xml")]) {
               def finalBuildCommand = buildCommand
               if (script.env.ONLY_COMPILE == 'true') {
-                def modulesList = script.params.MODULES?.split(',')
-                if (modulesList) {
+                def modulesList = (script.params.MODULES ?: script.env.MODULES ?: '').split(',')
+                if (modulesList && modulesList[0] != '') {
                   def appModule = script.readJSON text: script.env.APP_MODULE
                   def explicitNames = setting_config.module_names ?: [:]
                   def plList = []
@@ -89,7 +89,6 @@ class Compilation implements Serializable {
                   }
                 }
               }
-              
               script.sh """
                 set -e
                 ${finalBuildCommand}
@@ -177,9 +176,9 @@ EOF
     """
 
     // 获取模块名和目标路径
-    def module_list = script.params.MODULES?.split(',')
+    def module_list = (script.params.MODULES ?: script.env.MODULES ?: '').split(',')
     def app_module = script.readJSON text: script.env.APP_MODULE
-    if (!module_list || module_list.size() == 0) {
+    if (!module_list || module_list.size() == 0 || !module_list[0]) {
       script.error "❌ 未选择模块"
     }
     def mod = module_list[0] // 假设 Release 下载对应第一个选中的模块

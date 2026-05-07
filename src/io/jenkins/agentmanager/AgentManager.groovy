@@ -48,7 +48,7 @@ class AgentManager implements Serializable {
       insideArgs : insideArgsMap.get("build")
     ]
 
-    def module_list = script.params.MODULES.split(',')
+    def module_list = (script.params.MODULES ?: script.env.MODULES ?: '').split(',')
     def app_module = script.readJSON text: script.env.APP_MODULE
     def exists
     if (script.env.PLATFORM in ["kubernetes", "docker"]) {

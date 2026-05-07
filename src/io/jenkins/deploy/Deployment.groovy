@@ -198,23 +198,60 @@ class Deployment implements Serializable {
           def hosts = remoteHost.split(',').collect { it.trim() }.findAll { it }
 
           hosts.each { host ->
-            def transfers = paths.collect { p ->
-              // 将路径转换为相对于 baseDir 的相对路径
-              def relativePath = p.toString().replace(baseDir + "/", "")
+            def isFrontend = script.env.PROGRAMMING in ['frontend', 'vue', 'js', 'javascript']
+            def transfers = []
 
-              // 还原原有的 removePrefix 逻辑：如果 path 包含目录，则移除目录部分，仅传输文件名
-              // 如果是目录，则传输目录下的内容
-              def removePrefix = ""
-              if (relativePath.contains('/')) {
-                removePrefix = relativePath.substring(0, relativePath.lastIndexOf('/'))
-              }
+            if (isFrontend) {
+                // ---- 前端项目特殊处理：打包传输 ----
+                paths.each { p ->
+                    def fullPath = p.toString()
+                    def relativePath = fullPath.replace(baseDir, "")
+                    if (relativePath.startsWith("/")) relativePath = relativePath.substring(1)
+                    
+                    // 提取实际目录名，如 dist/** -> dist
+                    def sourceDir = relativePath.split('/')[0]
+                    def archiveName = "${projectName}.tar.gz"
 
-              return script.sshTransfer(
-                sourceFiles: relativePath,
-                removePrefix: removePrefix,
-                remoteDirectory: "${remoteDir}/${projectName}",
-                makeEmptyDirs: true
-              )
+                    // 在本地打包
+                    script.sh "tar -czf ${archiveName} -C ${sourceDir} ."
+
+                    transfers << script.sshTransfer(
+                        sourceFiles: archiveName,
+                        remoteDirectory: "${remoteDir}/${projectName}",
+                        execCommand: "cd ${remoteDir}/${projectName} && tar -xzf ${archiveName} && rm -f ${archiveName}",
+                        makeEmptyDirs: true
+                    )
+                }
+            } else {
+                // ---- 普通项目处理：逐文件传输 ----
+                transfers = paths.collect { p ->
+                    // 将路径转换为相对于 baseDir 的相对路径
+                    def fullPath = p.toString()
+                    def relativePath = fullPath.replace(baseDir, "")
+                    
+                    // 去除开头的斜杠
+                    if (relativePath.startsWith("/")) {
+                        relativePath = relativePath.substring(1)
+                    }
+
+                    // 如果路径依然为空，说明是要传输整个 baseDir 内容，设置为 **
+                    if (!relativePath || relativePath.trim() == "") {
+                        relativePath = "**"
+                    }
+
+                    // 还原原有的 removePrefix 逻辑：如果 path 包含目录，则移除目录部分，仅传输文件名
+                    def removePrefix = ""
+                    if (relativePath.contains('/') && relativePath != "**") {
+                        removePrefix = relativePath.substring(0, relativePath.lastIndexOf('/'))
+                    }
+
+                    return script.sshTransfer(
+                        sourceFiles: relativePath,
+                        removePrefix: removePrefix,
+                        remoteDirectory: "${remoteDir}/${projectName}",
+                        makeEmptyDirs: true
+                    )
+                }
             }
 
             script.sshPublisher(
@@ -298,7 +335,7 @@ class Deployment implements Serializable {
 
   // 部署逻辑
   def deployModules() {
-    def module_list = script.params.MODULES?.split(',')
+    def module_list = (script.params.MODULES ?: script.env.MODULES ?: '').split(',')
     def command_list
     def pre_command_list
     if (script.env.EXEC_COMMAND?.trim()) {
@@ -376,6 +413,7 @@ class Deployment implements Serializable {
       script.echo "${Colors.YELLOW}⚠️ 跳过部署阶段 (only_compile)${Colors.RESET}"
       return
     }
+
     // 封装调用逻辑
     if (script.env.PLATFORM == "kubernetes") {
       // 只能使用一次withCredentials 块处理 KUEBCONFIG 变量
