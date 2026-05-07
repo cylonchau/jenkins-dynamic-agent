@@ -25,6 +25,12 @@ class DockerAgent extends AgentInterface {
         } else {
           script.build_client.build(script.hook_funcs)
         }
+        script.dir(projectDir?.trim()) {
+          if(script.env.SKIP_BUILD_IMG?.toBoolean() != true && script.env.PLATFORM?.trim() == "kubernetes") {
+            script.echo "${Colors.CYAN}🐳 检测到目标平台为 ${script.env.PLATFORM}，开始建制镜像...${Colors.RESET}"
+            script.image_builer.buildImage()
+          }
+        }
       }
     }
   }
