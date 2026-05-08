@@ -315,7 +315,7 @@ class ImageMaker implements Serializable {
     """.stripIndent().trim()
     
     script.sh """
-      set -euxo pipefail
+      set -e
       ${buildCommand}
     """
     script.env.IMAGE_UPLOAD_SUCCESS = 'true'
