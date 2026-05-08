@@ -364,6 +364,7 @@
         },
         "build_platform": "docker",
         "platform": "kubernetes",
-        "job_prefix": "live-service"
+        "job_prefix": "live-service",
+        "pre_build_command": "npm install -g pnpm"
     }
 }

@@ -65,8 +65,10 @@ class Init implements Serializable {
       script.env.EXEC_COMMAND        = selectedModuleConfig.exec_command?.toString() ?: ""
       script.env.PRE_EXEC_COMMAND    = selectedModuleConfig.pre_exec_command?.toString() ?: ""
     }
+    
+    script.env.PRE_BUILD_COMMAND      = selectedModuleConfig.pre_build_command?.toString() ?: ""
 
-    script.env.MAIN_PROJECT           = script.env.GIT_REPO.tokenize('/').last().replaceFirst(/\.git$/, '')
+    script.env.MAIN_PROJECT           = script.env.GIT_REPO?.trim() ? script.env.GIT_REPO.tokenize('/').last().replaceFirst(/\.git$/, '') : ""
     script.env.ROOT_WORKSPACE         = script.pwd()
     script.env.USED_FALLBACK_BRANCH   = "false"
     script.env.BASE_IMAGE             = selectedModuleConfig.base_image?.toString() ?: ""
@@ -124,12 +126,12 @@ class Init implements Serializable {
 
     // 自动为富模块 (带 git 的模块) 生成分支选择参数
     if (selectedModuleConfig.modules) {
-      selectedModuleConfig.modules.each { modName, config ->
-        if (config instanceof Map && config.git) {
+      selectedModuleConfig.modules.each { modName, modConfig ->
+        if (modConfig instanceof Map && modConfig.git) {
           fixedParams << script.gitParameter(
             branch: '',
             branchFilter: 'origin/(.*)',
-            defaultValue: config.branch ?: "${script.env.DEFAULT_BRANCH}",
+            defaultValue: modConfig.branch ?: "${script.env.DEFAULT_BRANCH}",
             description: "请选择模块 [${modName}] 的分支",
             name: "BRANCH_${modName}",
             quickFilterEnabled: true,
@@ -137,7 +139,7 @@ class Init implements Serializable {
             sortMode: 'DESCENDING_SMART',
             tagFilter: '*',
             type: 'PT_BRANCH_TAG',
-            useRepository: "${config.git}",
+            useRepository: "${modConfig.git}",
           )
         }
       }

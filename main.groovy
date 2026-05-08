@@ -44,9 +44,10 @@ pipeline {
 
           if (richModules) {
             // 1. 【聚合模式 / 多仓库模式】
-            script.echo "🏗️ 检测到多仓库聚合模式，开始按模块拉取代码..."
+            echo "🏗️ 检测到多仓库聚合模式，开始按模块拉取代码..."
             richModules.each { mod ->
               def config = appModule[mod]
+              echo "🔍 检测到富模块 [${mod}]，准备拉取独立仓库: ${config.git}"
               dir("${env.ROOT_WORKSPACE}/${mod}-src") {
                 def branchToPull = params["BRANCH_${mod}"] ?: config.branch ?: 'master'
                 def cid = git_client.pullCode(config.git, env.GIT_CREDNTIAL, branchToPull)

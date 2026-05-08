@@ -64,6 +64,15 @@ class Compilation implements Serializable {
         def moduleList = (script.params.MODULES ?: script.env.MODULES ?: '').split(',').collect { it.trim() }.findAll { it }
         def appModule = script.readJSON text: script.env.APP_MODULE
 
+        // 0. 执行全局预编译命令 (pre_build_command)
+        if (script.env.PRE_BUILD_COMMAND?.trim()) {
+          script.echo "${Colors.BRIGHT_CYAN}⚒️ 执行全局预编译命令: ${script.env.PRE_BUILD_COMMAND}${Colors.RESET}"
+          script.sh """
+            set -e
+            ${script.env.PRE_BUILD_COMMAND}
+          """
+        }
+
         // 1. 优先处理需要独立编译的“富模块”
         def richModules = moduleList.findAll { mod -> appModule[mod] instanceof Map && appModule[mod].build_command }
         
