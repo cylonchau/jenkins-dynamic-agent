@@ -26,6 +26,7 @@ class Compilation implements Serializable {
     script.script {
       def programming = script.env.PROGRAMMING
       def buildCommand = script.env.BUILD_COMMAND
+      def pre_build_command = script.env.PRE_BUILD_COMMAND
       def setting_config = script.readJSON text: script.env.SELECTED_MODULE_CONFIG_JSON
       
       def isRelease = (script.env.DOWNLOAD_FROM_RELEASE?.toString() == 'true')
@@ -34,8 +35,9 @@ class Compilation implements Serializable {
         return
       }
 
-      if (!buildCommand) {
+      if (!buildCommand && !pre_build_command) {
         script.echo "${Colors.YELLOW}⚠️ 没有传入编译命令, 跳过编译${Colors.RESET}"
+        return
       }
 
       // 前置钩子
@@ -60,8 +62,12 @@ class Compilation implements Serializable {
         script.echo "${Colors.BRIGHT_CYAN}======================================= ⚒️ 开始执行编译 ========================================${Colors.RESET}"
 
       try {
-        script.echo "全局编译命令: ${buildCommand}"
+
+        // 得到module list，这里只有空，1个，多个的模块名字
         def moduleList = (script.params.MODULES ?: script.env.MODULES ?: '').split(',').collect { it.trim() }.findAll { it }
+        //  script.env.APP_MODULE 只有两个情况
+        // ["module_name": {xxxx:xxxx}]
+        // ["":"source_path"]
         def appModule = script.readJSON text: script.env.APP_MODULE
 
         // 0. 执行全局预编译命令 (pre_build_command)
@@ -73,11 +79,12 @@ class Compilation implements Serializable {
           """
         }
 
-        // 1. 优先处理需要独立编译的“富模块”
+        // 1. 区分构建模式
         def richModules = moduleList.findAll { mod -> appModule[mod] instanceof Map && appModule[mod].build_command }
         
         if (richModules) {
-          script.echo "${Colors.BRIGHT_CYAN}检测到独立模块编译配置，开始并行构建...${Colors.RESET}"
+          // ---- 富模块并行构建模式 ----
+          script.echo "${Colors.BRIGHT_CYAN}🏗️ 检测到富模块独立编译配置，开始并行构建...${Colors.RESET}"
           def buildTasks = [:]
           richModules.each { mod ->
             def config = appModule[mod]
@@ -94,16 +101,11 @@ class Compilation implements Serializable {
             }
           }
           script.parallel(buildTasks)
-          
-          // 如果所有选中的模块都是富模块，且都编完了，就不再执行下方的全局编译逻辑
-          if (richModules.size() == moduleList.size()) {
-            script.echo "${Colors.BRIGHT_CYAN}======================================= ⚒️ 所有模块编译完成 ========================================${Colors.RESET}"
-            return
-          }
-        }
-
-        // 2. 原有的全局编译逻辑 (兜底)
-        switch (programming) {
+        } else {
+          // ---- 常规全局构建模式 (包含 Java -pl 逻辑) ----
+          script.echo "${Colors.BRIGHT_CYAN}⚒️ 执行常规构建模式, 编程语言: ${programming}${Colors.RESET}"
+          script.echo "${Colors.BRIGHT_CYAN}⚒️ 全局编译命令: ${buildCommand}${Colors.RESET}"
+          switch (programming) {
           case 'java':
             script.configFileProvider([script.configFile(fileId: "${script.env.MAVEN_SETTINGS}", targetLocation: "settings.xml")]) {
               def finalBuildCommand = buildCommand
@@ -159,6 +161,7 @@ EOF
               set -e
               ${buildCommand}
             """
+        }
         }
         script.echo "${Colors.BRIGHT_CYAN}======================================= ⚒️ 编译执行完成 ========================================${Colors.RESET}"
       } catch (Exception e) {

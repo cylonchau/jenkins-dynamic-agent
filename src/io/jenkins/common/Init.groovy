@@ -161,6 +161,7 @@ class Init implements Serializable {
     if (selectedModuleConfig.modules) {
       script.env.APP_MODULE = JsonOutput.toJson(selectedModuleConfig.modules)
       // 如果只有一个模块且在顶级定义，自动锁定该模块，避免 params.MODULES 为空导致报错
+      // 保证 script.env.MODULES 永远为 “模块名字” 字符串
       if (selectedModuleConfig.modules.size() == 1) {
           script.env.MODULES = selectedModuleConfig.modules.keySet().iterator().next()
       }
