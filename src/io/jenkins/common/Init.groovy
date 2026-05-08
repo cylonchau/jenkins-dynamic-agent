@@ -103,12 +103,15 @@ class Init implements Serializable {
 
     // 初始化菜单
     def paramsList = generateDynamicProperties(selectedModuleConfig)
-    def fixedParams = [
-      script.gitParameter(
+    def fixedParams = []
+
+    // 如果主仓库存在，添加默认分支选择
+    if (script.env.GIT_REPO) {
+      fixedParams << script.gitParameter(
         branch: '',
         branchFilter: 'origin/(.*)',
         defaultValue: "${script.env.DEFAULT_BRANCH}",
-        description: '请选择发布的分支名',
+        description: "请选择主仓库 [${script.env.MAIN_PROJECT}] 的分支",
         name: 'selectedBranch',
         quickFilterEnabled: true,
         selectedValue: 'DEFAULT',
@@ -116,8 +119,29 @@ class Init implements Serializable {
         tagFilter: '*',
         type: 'PT_BRANCH_TAG',
         useRepository: "${script.env.GIT_REPO}",
-      ),
-    ]
+      )
+    }
+
+    // 自动为富模块 (带 git 的模块) 生成分支选择参数
+    if (selectedModuleConfig.modules) {
+      selectedModuleConfig.modules.each { modName, config ->
+        if (config instanceof Map && config.git) {
+          fixedParams << script.gitParameter(
+            branch: '',
+            branchFilter: 'origin/(.*)',
+            defaultValue: config.branch ?: "${script.env.DEFAULT_BRANCH}",
+            description: "请选择模块 [${modName}] 的分支",
+            name: "BRANCH_${modName}",
+            quickFilterEnabled: true,
+            selectedValue: 'DEFAULT',
+            sortMode: 'DESCENDING_SMART',
+            tagFilter: '*',
+            type: 'PT_BRANCH_TAG',
+            useRepository: "${config.git}",
+          )
+        }
+      }
+    }
 
     if (selectedModuleConfig.only_compile?.toBoolean() == true) {
       fixedParams << [

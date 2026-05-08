@@ -343,4 +343,27 @@
         "build_platform": "docker",
         "platform": "vm"
     },
+    "multi-frontend-aggregator-example": {
+        "programming": "frontend",
+        "git": "",
+        "modules": {
+            "web": {
+                "git": "https://github.com/web.git",
+                "branch": "newHome",
+                "build_command": "npm install && npm run build:prod",
+                "source": "dist",
+                "dest": "web"
+            },
+            "h5": {
+                "git": "https://github.com/h5.git",
+                "branch": "test",
+                "build_command": "npm install && npm run build",
+                "source": "dist",
+                "dest": "h5"
+            }
+        },
+        "build_platform": "docker",
+        "platform": "kubernetes",
+        "job_prefix": "live-service"
+    }
 }

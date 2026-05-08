@@ -28,79 +28,92 @@ class ImageMaker implements Serializable {
       case 'frontend':
       case 'vue':
       case 'js':
-        if (script.env.SHARED_MODULE.toBoolean() == true) {
-          // 共享模块的镜像构建
-          def first_mod = module_list[0]
-          def subpathRaw = app_module[first_mod]
-          def subpaths = subpathRaw instanceof List ? subpathRaw : [subpathRaw?.toString() ?: ""]
-          // 如果是多路径，使用项目根目录作为工作目录
-          def path = subpaths.size() > 1 ? "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}" : "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpaths[0]}"
-
+        def isAggregator = module_list.any { mod -> app_module[mod] instanceof Map && app_module[mod].dest }
+        
+        if (isAggregator) {
+          // ---- 聚合服务逻辑 (多模块合并到一个 Nginx 镜像) ----
           def image_addr = "${script.env.DOCKER_REGISTRY}/${CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, script.env.JOB_SUFFIX)}:${image_tag}"
+          
+          def copyInstructions = []
+          module_list.each { mod ->
+            def config = app_module[mod]
+            if (config instanceof Map) {
+              def src = config.source ?: "dist"
+              def dest = config.dest ?: ""
+              // 如果是独立 git 拉取的，产物在 ${mod}-src/${src}
+              def fullSrc = config.git ? "${mod}-src/${src}/" : "${src}/"
+              def fullDest = "/usr/share/nginx/html/${dest}/".replaceAll(/\/+$/, "/")
+              copyInstructions << "COPY ${fullSrc} ${fullDest}"
+            } else {
+              // 兼容字符串配置
+              copyInstructions << "COPY ${config}/ /usr/share/nginx/html/"
+            }
+          }
 
-          def projectName = script.env.JOB_PREFIX?.trim() ?: ""
           def dockerfileContent = """
             FROM nginx:1.22
             RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list && \\
                   apt update && apt install wget && \\
                   ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \\
                   rm -rf /var/cache/apt/*
-            COPY dist/ /usr/share/nginx/html
+            ${copyInstructions.join('\n')}
+            RUN chmod -R 755 /usr/share/nginx/html
           """.stripIndent()
+
           script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDNTIAL}", targetLocation: "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker/config.json")]) {
             script.withEnv(["DOCKER_CONFIG=${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"]) {
               try {
-                script.dir(path) {
-                  if (!script.fileExists('Dockerfile')) {
-                    script.writeFile file: 'Dockerfile', text: dockerfileContent
-                  } else {
-                    script.echo "${Colors.YELLOW}⚠️  跳过写入，Dockerfile 已存在${Colors.RESET}"
-                  }
+                script.dir("${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}") {
+                  script.writeFile file: 'Dockerfile', text: dockerfileContent
                   runBuildImage(image_addr.toString())
                 }
-                script.echo "${Colors.GREEN}✅ 成功构建并推送镜像: ${image_addr}${Colors.RESET}"
+                script.echo "${Colors.GREEN}✅ 成功构建聚合镜像: ${image_addr}${Colors.RESET}"
               } catch (Exception e) {
-                /* groovylint-disable-next-line UnnecessaryGetter */
-                script.echo "${Colors.RED}错误：无法为模块 ${first_mod} 构建镜像 ${image_addr}，错误信息：${e}${Colors.RESET}"
-                script.error '❌ 镜像构建失败，请检查构建环境或 Dockerfile 配置'
+                script.echo "${Colors.RED}错误：聚合镜像构建失败 ${image_addr}，错误信息：${e}${Colors.RESET}"
+                script.error '❌ 镜像构建失败'
+              }
+            }
+          }
+        } else if (script.env.SHARED_MODULE.toBoolean() == true) {
+          // 共享模块的镜像构建 (原有逻辑)
+          def first_mod = module_list[0]
+          def subpathRaw = app_module[first_mod]
+          def subpaths = subpathRaw instanceof List ? subpathRaw : [subpathRaw?.toString() ?: ""]
+          def path = subpaths.size() > 1 ? "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}" : "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpaths[0]}"
+          def image_addr = "${script.env.DOCKER_REGISTRY}/${CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, script.env.JOB_SUFFIX)}:${image_tag}"
+
+          def dockerfileContent = """
+            FROM nginx:1.22
+            COPY dist/ /usr/share/nginx/html
+          """.stripIndent()
+          
+          script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDNTIAL}", targetLocation: "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker/config.json")]) {
+            script.withEnv(["DOCKER_CONFIG=${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"]) {
+              script.dir(path) {
+                if (!script.fileExists('Dockerfile')) script.writeFile file: 'Dockerfile', text: dockerfileContent
+                runBuildImage(image_addr.toString())
               }
             }
           }
         } else {
-          // 独立模块的镜像构建
+          // 独立模块镜像构建 (原有逻辑)
           for (mod in module_list) {
             def subpathRaw = app_module[mod]
             def subpaths = subpathRaw instanceof List ? subpathRaw : [subpathRaw?.toString() ?: ""]
-            // 如果是多路径，使用项目根目录作为工作目录
             def path = subpaths.size() > 1 ? "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}" : "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpaths[0]}"
             def projectName = CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, mod)
             def image_addr = "${script.env.DOCKER_REGISTRY}/${projectName}:${image_tag}"
             
             def dockerfileContent = """
               FROM nginx:1.22
-              RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list && \\
-                    apt update && apt install wget && \\
-                    ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \\
-                    rm -rf /var/cache/apt/*
               COPY dist/ /usr/share/nginx/html
             """.stripIndent()
 
             script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDNTIAL}", targetLocation: "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker/config.json")]) {
               script.withEnv(["DOCKER_CONFIG=${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"]) {
-                try {
-                  script.dir(path) {
-                    if (!script.fileExists('Dockerfile')) {
-                      script.writeFile file: 'Dockerfile', text: dockerfileContent
-                    } else {
-                      script.echo "${Colors.YELLOW}⚠️  跳过写入，Dockerfile 已存在${Colors.RESET}"
-                    }
-                    runBuildImage(image_addr.toString())
-                  }
-                  script.echo "${Colors.GREEN}✅ 成功构建并推送镜像: ${image_addr}${Colors.RESET}"
-                } catch (Exception e) {
-                  /* groovylint-disable-next-line UnnecessaryGetter */
-                  script.echo "${Colors.RED}错误：无法为模块 ${mod} 构建镜像 ${image_addr}，错误信息：${e}${Colors.RESET}"
-                  script.error '❌ 镜像构建失败，请检查构建环境或 Dockerfile 配置'
+                script.dir(path) {
+                  if (!script.fileExists('Dockerfile')) script.writeFile file: 'Dockerfile', text: dockerfileContent
+                  runBuildImage(image_addr.toString())
                 }
               }
             }

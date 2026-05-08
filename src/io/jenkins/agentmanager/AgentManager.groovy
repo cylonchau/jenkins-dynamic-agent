@@ -55,7 +55,8 @@ class AgentManager implements Serializable {
       if (script.env.SHARED_MODULE?.toBoolean() == true ) {
         // ---- 共享模块镜像构建逻辑 ----
         def first_mod = module_list[0]
-        def subpath = app_module[first_mod]?.toString() ?: ''
+        def moduleConfig = app_module[first_mod]
+        def subpath = (moduleConfig instanceof Map ? moduleConfig.source : moduleConfig)?.toString() ?: ''
         def path = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpath}"
 
         def repoName = CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, script.env.JOB_SUFFIX ?: "")

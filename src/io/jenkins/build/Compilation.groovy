@@ -61,14 +61,49 @@ class Compilation implements Serializable {
 
       try {
         script.echo "编译命令: ${buildCommand}"
+        def moduleList = (script.params.MODULES ?: script.env.MODULES ?: '').split(',').collect { it.trim() }.findAll { it }
+        def appModule = script.readJSON text: script.env.APP_MODULE
+        
+        // 检查是否存在需要独立构建的“富模块”
+        def richModules = moduleList.findAll { mod -> appModule[mod] instanceof Map && appModule[mod].git }
+        
+        if (richModules) {
+          script.echo "${Colors.BRIGHT_CYAN}检测到富模块配置，开始独立拉取与构建...${Colors.RESET}"
+          def buildTasks = [:]
+          richModules.each { mod ->
+            def config = appModule[mod]
+            // 优先从参数中获取分支: BRANCH_${mod}
+            def branchToPull = script.params["BRANCH_${mod}"] ?: config.branch ?: 'master'
+            
+            buildTasks[mod] = {
+              script.dir("${mod}-src") {
+                script.echo "📦 [${mod}] 开始拉取代码: ${config.git}, 分支: ${branchToPull}"
+                script.git_client.pullCode(config.git, script.env.GIT_CREDNTIAL, branchToPull)
+                
+                script.echo "⚒️ [${mod}] 开始编译: ${config.build_command}"
+                script.sh """
+                  set -e
+                  ${config.build_command}
+                """
+              }
+            }
+          }
+          script.parallel(buildTasks)
+          
+          // 如果只有富模块，直接返回，不再执行全局编译
+          if (richModules.size() == moduleList.size()) {
+            script.echo "${Colors.BRIGHT_CYAN}======================================= ⚒️ 所有富模块编译完成 ========================================${Colors.RESET}"
+            return
+          }
+        }
+
         switch (programming) {
           case 'java':
             script.configFileProvider([script.configFile(fileId: "${script.env.MAVEN_SETTINGS}", targetLocation: "settings.xml")]) {
               def finalBuildCommand = buildCommand
               if (script.env.ONLY_COMPILE == 'true') {
-                def modulesList = (script.params.MODULES ?: script.env.MODULES ?: '').split(',')
+                def modulesList = moduleList
                 if (modulesList && modulesList[0] != '') {
-                  def appModule = script.readJSON text: script.env.APP_MODULE
                   def explicitNames = setting_config.module_names ?: [:]
                   def plList = []
                   
@@ -77,7 +112,7 @@ class Compilation implements Serializable {
                     if (explicitName) {
                       plList << explicitName
                     } else {
-                      def path = appModule[mod]?.toString()
+                      def path = appModule[mod] instanceof Map ? appModule[mod].source : appModule[mod]?.toString()
                       if (path) {
                         plList << path.split('/')[0]
                       }
