@@ -60,27 +60,23 @@ class Compilation implements Serializable {
         script.echo "${Colors.BRIGHT_CYAN}======================================= ⚒️ 开始执行编译 ========================================${Colors.RESET}"
 
       try {
-        script.echo "编译命令: ${buildCommand}"
+        script.echo "全局编译命令: ${buildCommand}"
         def moduleList = (script.params.MODULES ?: script.env.MODULES ?: '').split(',').collect { it.trim() }.findAll { it }
         def appModule = script.readJSON text: script.env.APP_MODULE
-        
-        // 检查是否存在需要独立构建的“富模块”
-        def richModules = moduleList.findAll { mod -> appModule[mod] instanceof Map && appModule[mod].git }
+
+        // 1. 优先处理需要独立编译的“富模块”
+        def richModules = moduleList.findAll { mod -> appModule[mod] instanceof Map && appModule[mod].build_command }
         
         if (richModules) {
-          script.echo "${Colors.BRIGHT_CYAN}检测到富模块配置，开始独立拉取与构建...${Colors.RESET}"
+          script.echo "${Colors.BRIGHT_CYAN}检测到独立模块编译配置，开始并行构建...${Colors.RESET}"
           def buildTasks = [:]
           richModules.each { mod ->
             def config = appModule[mod]
-            // 优先从参数中获取分支: BRANCH_${mod}
-            def branchToPull = script.params["BRANCH_${mod}"] ?: config.branch ?: 'master'
-            
             buildTasks[mod] = {
-              script.dir("${mod}-src") {
-                script.echo "📦 [${mod}] 开始拉取代码: ${config.git}, 分支: ${branchToPull}"
-                script.git_client.pullCode(config.git, script.env.GIT_CREDNTIAL, branchToPull)
-                
-                script.echo "⚒️ [${mod}] 开始编译: ${config.build_command}"
+              // 如果是独立 git 拉取的，进入对应目录；否则在当前目录
+              def workDir = config.git ? "${mod}-src" : "."
+              script.dir(workDir) {
+                script.echo "⚒️ [${mod}] 开始执行独立编译: ${config.build_command}"
                 script.sh """
                   set -e
                   ${config.build_command}
@@ -90,13 +86,14 @@ class Compilation implements Serializable {
           }
           script.parallel(buildTasks)
           
-          // 如果只有富模块，直接返回，不再执行全局编译
+          // 如果所有选中的模块都是富模块，且都编完了，就不再执行下方的全局编译逻辑
           if (richModules.size() == moduleList.size()) {
-            script.echo "${Colors.BRIGHT_CYAN}======================================= ⚒️ 所有富模块编译完成 ========================================${Colors.RESET}"
+            script.echo "${Colors.BRIGHT_CYAN}======================================= ⚒️ 所有模块编译完成 ========================================${Colors.RESET}"
             return
           }
         }
 
+        // 2. 原有的全局编译逻辑 (兜底)
         switch (programming) {
           case 'java':
             script.configFileProvider([script.configFile(fileId: "${script.env.MAVEN_SETTINGS}", targetLocation: "settings.xml")]) {

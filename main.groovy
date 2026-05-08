@@ -37,17 +37,39 @@ pipeline {
       }
       steps {
         script {
-          def PROJECT_DIR = "${env.ROOT_WORKSPACE}/${env.MAIN_PROJECT}"
-          dir("${PROJECT_DIR}") {
-            env.CURRENT_COMMIT_ID = git_client.pullCode(env.GIT_REPO, env.GIT_CREDNTIAL, params.selectedBranch, params.FORCE_COMMIT ?: "")
-            if (env.BUILD_PLATFORM == "kubernetes" && !common.shouldSkipStage("compile")) { 
-              stash(
-                name: 'build-dir',
-                includes: '**',
-                excludes: '.git/**, .docker/**, .gitignore, settings.xml',
-                allowEmpty: true
-              )
+          def appModule = readJSON text: env.APP_MODULE
+          def moduleList = (params.MODULES ?: env.MODULES ?: '').split(',').collect { it.trim() }.findAll { it }
+          // 检查是否存在带 git 的富模块配置
+          def richModules = moduleList.findAll { mod -> appModule[mod] instanceof Map && appModule[mod].git }
+
+          if (richModules) {
+            // 1. 【聚合模式 / 多仓库模式】
+            script.echo "🏗️ 检测到多仓库聚合模式，开始按模块拉取代码..."
+            richModules.each { mod ->
+              def config = appModule[mod]
+              dir("${env.ROOT_WORKSPACE}/${mod}-src") {
+                def branchToPull = params["BRANCH_${mod}"] ?: config.branch ?: 'master'
+                def cid = git_client.pullCode(config.git, env.GIT_CREDNTIAL, branchToPull)
+                // 使用第一个模块的 commitId 作为基础镜像标识
+                if (!env.CURRENT_COMMIT_ID) env.CURRENT_COMMIT_ID = cid
+              }
             }
+          } else if (env.GIT_REPO && env.GIT_REPO != "null" && env.GIT_REPO != "") {
+            // 2. 【传统模式 / 单仓库模式】
+            def PROJECT_DIR = "${env.ROOT_WORKSPACE}/${env.MAIN_PROJECT}"
+            dir("${PROJECT_DIR}") {
+              env.CURRENT_COMMIT_ID = git_client.pullCode(env.GIT_REPO, env.GIT_CREDNTIAL, params.selectedBranch, params.FORCE_COMMIT ?: "")
+            }
+          }
+
+          // 3. 统一 Stash (在根目录执行，确保能抓取到所有子目录)
+          if (env.BUILD_PLATFORM == "kubernetes" && !common.shouldSkipStage("compile")) { 
+            stash(
+              name: 'build-dir',
+              includes: '**',
+              excludes: '.git/**, .docker/**, .gitignore, settings.xml',
+              allowEmpty: true
+            )
           }
         }
       }

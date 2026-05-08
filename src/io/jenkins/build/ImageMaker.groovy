@@ -39,10 +39,11 @@ class ImageMaker implements Serializable {
             def config = app_module[mod]
             if (config instanceof Map) {
               def src = config.source ?: "dist"
-              def dest = config.dest ?: ""
+              // 清理 dest 中的通配符，只保留目录路径
+              def dest = (config.dest ?: "").replaceAll(/[\*\?]+/, "").replaceAll(/\/+$/, "")
               // 如果是独立 git 拉取的，产物在 ${mod}-src/${src}
               def fullSrc = config.git ? "${mod}-src/${src}/" : "${src}/"
-              def fullDest = "/usr/share/nginx/html/${dest}/".replaceAll(/\/+$/, "/")
+              def fullDest = "/usr/share/nginx/html/${dest}/".replaceAll(/\/+/, "/")
               copyInstructions << "COPY ${fullSrc} ${fullDest}"
             } else {
               // 兼容字符串配置
