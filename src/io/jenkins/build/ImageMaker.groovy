@@ -32,7 +32,10 @@ class ImageMaker implements Serializable {
         
         if (isAggregator) {
           // ---- 聚合服务逻辑 (多模块合并到一个 Nginx 镜像) ----
-          def image_addr = "${script.env.DOCKER_REGISTRY}/${CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, script.env.JOB_SUFFIX)}:${image_tag}"
+          def projectName = CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, script.env.JOB_SUFFIX)
+          def image_addr = (script.env.DOCKER_REGISTRY.endsWith(projectName) || script.env.DOCKER_REGISTRY.endsWith("/" + projectName)) ? 
+                           "${script.env.DOCKER_REGISTRY}:${image_tag}" : 
+                           "${script.env.DOCKER_REGISTRY}/${projectName}:${image_tag}"
           
           def copyInstructions = []
           module_list.each { mod ->
@@ -61,10 +64,15 @@ class ImageMaker implements Serializable {
             RUN chmod -R 755 /usr/share/nginx/html
           """.stripIndent()
 
-          script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDNTIAL}", targetLocation: "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker/config.json")]) {
-            script.withEnv(["DOCKER_CONFIG=${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"]) {
+          def dockerConfigDir = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"
+          script.echo "🐳 [Aggregator] 准备注入 Docker 凭证 (ID: ${script.env.REGISTRY_CREDENTIAL})..."
+          script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDENTIAL}", targetLocation: (script.env.MAIN_PROJECT ? "${script.env.MAIN_PROJECT}/" : "") + ".docker/config.json")]) {
+            script.withEnv(["DOCKER_CONFIG=${dockerConfigDir}"]) {
               try {
                 script.dir("${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}") {
+                  if (script.env.LOG_DEBUG == 'true') {
+                    script.sh "echo 'Debug: DOCKER_CONFIG is \$DOCKER_CONFIG'; ls -la .docker/"
+                  }
                   script.writeFile file: 'Dockerfile', text: dockerfileContent
                   runBuildImage(image_addr.toString())
                 }
@@ -81,15 +89,19 @@ class ImageMaker implements Serializable {
           def subpathRaw = app_module[first_mod]
           def subpaths = subpathRaw instanceof List ? subpathRaw : [subpathRaw?.toString() ?: ""]
           def path = subpaths.size() > 1 ? "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}" : "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpaths[0]}"
-          def image_addr = "${script.env.DOCKER_REGISTRY}/${CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, script.env.JOB_SUFFIX)}:${image_tag}"
+          def projectName = CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, script.env.JOB_SUFFIX)
+          def image_addr = (script.env.DOCKER_REGISTRY.endsWith(projectName) || script.env.DOCKER_REGISTRY.endsWith("/" + projectName)) ? 
+                           "${script.env.DOCKER_REGISTRY}:${image_tag}" : 
+                           "${script.env.DOCKER_REGISTRY}/${projectName}:${image_tag}"
 
           def dockerfileContent = """
             FROM nginx:1.22
             COPY dist/ /usr/share/nginx/html
           """.stripIndent()
           
-          script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDNTIAL}", targetLocation: "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker/config.json")]) {
-            script.withEnv(["DOCKER_CONFIG=${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"]) {
+          def dockerConfigDir = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"
+          script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDENTIAL}", targetLocation: (script.env.MAIN_PROJECT ? "${script.env.MAIN_PROJECT}/" : "") + ".docker/config.json")]) {
+            script.withEnv(["DOCKER_CONFIG=${dockerConfigDir}"]) {
               script.dir(path) {
                 if (!script.fileExists('Dockerfile')) script.writeFile file: 'Dockerfile', text: dockerfileContent
                 runBuildImage(image_addr.toString())
@@ -103,15 +115,18 @@ class ImageMaker implements Serializable {
             def subpaths = subpathRaw instanceof List ? subpathRaw : [subpathRaw?.toString() ?: ""]
             def path = subpaths.size() > 1 ? "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}" : "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpaths[0]}"
             def projectName = CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, mod)
-            def image_addr = "${script.env.DOCKER_REGISTRY}/${projectName}:${image_tag}"
+            def image_addr = (script.env.DOCKER_REGISTRY.endsWith(projectName) || script.env.DOCKER_REGISTRY.endsWith("/" + projectName)) ? 
+                             "${script.env.DOCKER_REGISTRY}:${image_tag}" : 
+                             "${script.env.DOCKER_REGISTRY}/${projectName}:${image_tag}"
             
             def dockerfileContent = """
               FROM nginx:1.22
               COPY dist/ /usr/share/nginx/html
             """.stripIndent()
 
-            script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDNTIAL}", targetLocation: "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker/config.json")]) {
-              script.withEnv(["DOCKER_CONFIG=${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"]) {
+            def dockerConfigDir = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"
+            script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDENTIAL}", targetLocation: (script.env.MAIN_PROJECT ? "${script.env.MAIN_PROJECT}/" : "") + ".docker/config.json")]) {
+              script.withEnv(["DOCKER_CONFIG=${dockerConfigDir}"]) {
                 script.dir(path) {
                   if (!script.fileExists('Dockerfile')) script.writeFile file: 'Dockerfile', text: dockerfileContent
                   runBuildImage(image_addr.toString())
@@ -134,22 +149,26 @@ class ImageMaker implements Serializable {
             path = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}"
           }
           
-          def image_addr = "${script.env.DOCKER_REGISTRY}/${CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, script.env.JOB_SUFFIX)}:${image_tag}"
+          def projectName = CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, script.env.JOB_SUFFIX)
+          def image_addr = (script.env.DOCKER_REGISTRY.endsWith(projectName) || script.env.DOCKER_REGISTRY.endsWith("/" + projectName)) ? 
+                           "${script.env.DOCKER_REGISTRY}:${image_tag}" : 
+                           "${script.env.DOCKER_REGISTRY}/${projectName}:${image_tag}"
 
-          def projectName = script.env.JOB_PREFIX?.trim() ?: ""
+          def rustBinaryName = script.env.JOB_PREFIX?.trim() ?: ""
           def dockerfileContent = """
             FROM debian:bookworm-slim:latest
             WORKDIR /app
-            COPY ./target/release/${projectName} /app/${projectName}
+            COPY ./target/release/${rustBinaryName} /app/${rustBinaryName}
             COPY ./crates /app/crates
             RUN echo "当前目录是:" && pwd && \\
-                echo "检查 ${projectName} 是否存在:" && \\
+                echo "检查 ${rustBinaryName} 是否存在:" && \\
                 ls -l /app/*
-            CMD ["./${projectName}", "./crates/${projectName}"]
+            CMD ["./${rustBinaryName}", "./crates/${rustBinaryName}"]
           """.stripIndent()
 
-          script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDNTIAL}", targetLocation: "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker/config.json")]) {
-            script.withEnv(["DOCKER_CONFIG=${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"]) {
+          def dockerConfigDir = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"
+          script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDENTIAL}", targetLocation: (script.env.MAIN_PROJECT ? "${script.env.MAIN_PROJECT}/" : "") + ".docker/config.json")]) {
+            script.withEnv(["DOCKER_CONFIG=${dockerConfigDir}"]) {
               try {
                 script.dir(path) {
                   if (!script.fileExists('Dockerfile')) {
@@ -174,7 +193,9 @@ class ImageMaker implements Serializable {
             def subpaths = subpathRaw instanceof List ? subpathRaw : [subpathRaw?.toString() ?: ""]
             def path = subpaths.size() > 1 ? "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}" : "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpaths[0]}"
             def projectName = CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, mod)
-            def image_addr = "${script.env.DOCKER_REGISTRY}/${projectName}:${image_tag}"
+            def image_addr = (script.env.DOCKER_REGISTRY.endsWith(projectName) || script.env.DOCKER_REGISTRY.endsWith("/" + projectName)) ? 
+                             "${script.env.DOCKER_REGISTRY}:${image_tag}" : 
+                             "${script.env.DOCKER_REGISTRY}/${projectName}:${image_tag}"
 
             if (script.env.NAME_ONLY.toBoolean() == true ) {
               projectName = "${mod}"
@@ -191,8 +212,9 @@ class ImageMaker implements Serializable {
               CMD ["./${projectName}", "./crates/${projectName}"]
             """.stripIndent()
 
-            script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDNTIAL}", targetLocation: "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker/config.json")]) {
-              script.withEnv(["DOCKER_CONFIG=${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"]) {
+            def dockerConfigDir = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"
+            script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDENTIAL}", targetLocation: (script.env.MAIN_PROJECT ? "${script.env.MAIN_PROJECT}/" : "") + ".docker/config.json")]) {
+              script.withEnv(["DOCKER_CONFIG=${dockerConfigDir}"]) {
                 try {
                   script.dir(path) {
                     // 1. 如果 dockerfile 不存在，写入
@@ -229,12 +251,16 @@ class ImageMaker implements Serializable {
           // 如果是多路径，使用项目根目录作为工作目录
           def path = subpaths.size() > 1 ? "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}" : "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpaths[0]}"
 
-          def image_addr = "${script.env.DOCKER_REGISTRY}/${CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, script.env.JOB_SUFFIX)}:${image_tag}"
+          def projectName = CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, script.env.JOB_SUFFIX)
+          def image_addr = (script.env.DOCKER_REGISTRY.endsWith(projectName) || script.env.DOCKER_REGISTRY.endsWith("/" + projectName)) ? 
+                           "${script.env.DOCKER_REGISTRY}:${image_tag}" : 
+                           "${script.env.DOCKER_REGISTRY}/${projectName}:${image_tag}"
 
           // 根据不同编译环境的上下文执行
           // 文件操作必须为 job 的 ROOT_WORKSPACE 下，否则没权限
-          script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDNTIAL}", targetLocation: "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker/config.json")]) {
-            script.withEnv(["DOCKER_CONFIG=${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"]) {
+          def dockerConfigDir = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"
+          script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDENTIAL}", targetLocation: (script.env.MAIN_PROJECT ? "${script.env.MAIN_PROJECT}/" : "") + ".docker/config.json")]) {
+            script.withEnv(["DOCKER_CONFIG=${dockerConfigDir}"]) {
               try {
                 script.dir(path) {
                   runBuildImage(image_addr.toString())
@@ -255,10 +281,13 @@ class ImageMaker implements Serializable {
             // 如果是多路径，使用项目根目录作为工作目录
             def path = subpaths.size() > 1 ? "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}" : "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpaths[0]}"
             def projectName = CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, mod)
-            def image_addr = "${script.env.DOCKER_REGISTRY}/${projectName}:${image_tag}"
+            def image_addr = (script.env.DOCKER_REGISTRY.endsWith(projectName) || script.env.DOCKER_REGISTRY.endsWith("/" + projectName)) ? 
+                             "${script.env.DOCKER_REGISTRY}:${image_tag}" : 
+                             "${script.env.DOCKER_REGISTRY}/${projectName}:${image_tag}"
 
-            script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDNTIAL}", targetLocation: "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker/config.json")]) {
-              script.withEnv(["DOCKER_CONFIG=${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"]) {
+            def dockerConfigDir = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"
+            script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDENTIAL}", targetLocation: (script.env.MAIN_PROJECT ? "${script.env.MAIN_PROJECT}/" : "") + ".docker/config.json")]) {
+              script.withEnv(["DOCKER_CONFIG=${dockerConfigDir}"]) {
                 try {
                   script.dir(path) {
                     runBuildImage(image_addr.toString())
@@ -298,7 +327,7 @@ class ImageMaker implements Serializable {
       fi
       
       if command -v buildctl >/dev/null 2>&1; then
-        echo "🔨 Using buildctl..."
+        echo "${Colors.BRIGHT_CYAN}🔨 Using buildctl...${Colors.RESET}"
         buildctl build \\
           --frontend dockerfile.v0 \\
           --local context=. \\
@@ -306,10 +335,10 @@ class ImageMaker implements Serializable {
           ${buildctlArgsStr} \\
           --output type=image,name=${image_addr},push=true
       elif command -v docker >/dev/null 2>&1; then
-        echo "🐳 Using docker..."
+        echo "${Colors.BRIGHT_CYAN}🐳 Using docker...${Colors.RESET}"
         docker build -t ${image_addr} ${buildArgsStr} . --no-cache && docker push ${image_addr}
       else
-        echo "❌ Buildkit 和 Docker 工具不可用"
+        echo "${Colors.RED}❌ Buildkit 和 Docker 工具不可用${Colors.RESET}"
         exit 1
       fi
     """.stripIndent().trim()

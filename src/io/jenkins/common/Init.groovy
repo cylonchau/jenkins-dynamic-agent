@@ -88,7 +88,7 @@ class Init implements Serializable {
     script.env.MAVEN_SETTINGS       = globalConfig.maven_settings?.toString() ?: ""
     script.env.MAVEN_CREDENTIAL     = globalConfig.maven_credential?.toString() ?: ''
     script.env.DEFAULT_BRANCH       = globalConfig.default_branch?.toString() ?: ""
-    script.env.REGISTRY_CREDNTIAL   = globalConfig.registry_credential?.toString() ?: ""
+    script.env.REGISTRY_CREDENTIAL  = globalConfig.registry_credential?.toString() ?: ""
     script.env.GIT_CREDNTIAL        = globalConfig.git_credential?.toString() ?: ""
     script.env.IMG_REGISTRY         = globalConfig.img_registry?.toString() ?: "https://docker.io"
     script.env.IMG_REGISTRY_USER    = globalConfig.img_registry_user?.toString() ?: ""
@@ -217,6 +217,7 @@ class Init implements Serializable {
       env_output += """
         🔹 DEPLOY_CLUSTER: ${Colors.BLUE}${script.env.DEPLOY_CLUSTER}${Colors.RESET}
         🔹 DOCKER_REGISTRY: ${Colors.BLUE}${script.env.DOCKER_REGISTRY}${Colors.RESET}
+        🔹 REGISTRY_CREDENTIAL: ${Colors.BLUE}${script.env.REGISTRY_CREDENTIAL}${Colors.RESET}
       """.stripIndent()
     }
 
