@@ -352,6 +352,7 @@ class Deployment implements Serializable {
 
     def app_module = script.readJSON text: script.env.APP_MODULE
     def needRestart = checkIfNeedRestart()
+    def deployedProjects = [] as Set
 
     for (mod in module_list) {
       def subpathRaw = app_module[mod]
@@ -363,25 +364,41 @@ class Deployment implements Serializable {
 
       def project_name
       def manifest_file
-      if (script.env.MANIFEST_PREFIX != "") {
+      
+      def modulesData = script.selectedModuleConfig?.modules
+      def isMultiModule = (modulesData instanceof Map && modulesData.size() > 1)
+
+      if (script.env.SHARED_MODULE?.toBoolean() && !isMultiModule) {
+        project_name = CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, script.env.JOB_SUFFIX)
+      } else if (script.env.SHARED_MODULE?.toBoolean() && isMultiModule) {
+        project_name = script.env.JOB_PREFIX
+      } else if (script.env.MANIFEST_PREFIX != "") {
         project_name = CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, "${script.env.MANIFEST_PREFIX}-${mod}")
       } else {
         project_name = CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, mod)
       }
+      script.echo "DEBUG: mod=${mod}, SHARED_MODULE=${script.env.SHARED_MODULE}, isMultiModule=${isMultiModule}, Calculated project_name=${project_name}"
+
+      if (deployedProjects.contains(project_name)) {
+        script.echo "跳过已部署的项目: ${project_name}"
+        continue
+      }
+      deployedProjects.add(project_name)
+
       manifest_file = "${script.env.ROOT_WORKSPACE}/manifests/${project_name}.yaml"
 
       try {
         if (script.env.PLATFORM == "kubernetes") {
           setKubernetesNamespace(manifest_file)
-          def image_tag = script.env.CURRENT_COMMIT_ID
-          
           def image_addr
-          if (script.env.SHARED_MODULE == 'true') {
-            
-            image_addr = "${script.env.DOCKER_REGISTRY}/${CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, script.env.JOB_SUFFIX)}:${image_tag}"
-          } else {
-            image_addr = "${script.env.DOCKER_REGISTRY}/${CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, mod)}:${image_tag}"
-          }
+          def image_tag = script.env.CURRENT_COMMIT_ID
+          def registryProject = (script.env.SHARED_MODULE?.toBoolean()) ? 
+                                CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, script.env.JOB_SUFFIX) : 
+                                CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, mod)
+          
+          image_addr = (script.env.DOCKER_REGISTRY.endsWith(registryProject) || script.env.DOCKER_REGISTRY.endsWith("/" + registryProject)) ? 
+                       "${script.env.DOCKER_REGISTRY}:${image_tag}" : 
+                       "${script.env.DOCKER_REGISTRY}/${registryProject}:${image_tag}"
 
           if (needRestart) {
             restartKubernetesDeployment(project_name)

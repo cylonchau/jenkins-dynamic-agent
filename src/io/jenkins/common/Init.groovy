@@ -23,8 +23,14 @@ class Init implements Serializable {
     script.common           = new CommonTools(script)
     //初始化配置
     def config = script.readJSON(file: 'modules.json')
-    def jobName = script.env.JOB_NAME
+    // 自动处理文件夹路径，确保匹配到 modules.json 中的 Key
+    def jobName = script.env.JOB_BASE_NAME ?: script.env.JOB_NAME.tokenize('/').last()
+    script.echo ">>>> [PIPELINE_VERSION: 1.0.7] Initializing job: ${jobName}"
     def selectedModuleConfig = config[jobName]
+    if (selectedModuleConfig == null) {
+        script.echo "${Colors.RED}❌ 无法在 modules.json 中找到配置: ${jobName}${Colors.RESET}"
+        script.error "配置丢失"
+    }
     script.selectedModuleConfig = selectedModuleConfig
     def globalConfig = config["global"]
 
@@ -72,7 +78,9 @@ class Init implements Serializable {
     script.env.ROOT_WORKSPACE         = script.pwd()
     script.env.USED_FALLBACK_BRANCH   = "false"
     script.env.BASE_IMAGE             = selectedModuleConfig.base_image?.toString() ?: ""
-    script.env.SHARED_MODULE          = selectedModuleConfig.shared_module?.toString() ?: "false"
+    def isSharedFlag = (selectedModuleConfig.shared_module?.toString() == "true" || selectedModuleConfig.share_module?.toString() == "true")
+    def isShared = isSharedFlag || (selectedModuleConfig.modules instanceof Map && selectedModuleConfig.modules.size() > 1)
+    script.env.SHARED_MODULE          = isShared ? "true" : "false"
     script.env.MANIFEST_PREFIX        = selectedModuleConfig.manifest_prefix ?: ""
 
     // 镜像相关独立变量
@@ -90,7 +98,14 @@ class Init implements Serializable {
     script.env.DEFAULT_BRANCH       = globalConfig.default_branch?.toString() ?: ""
     script.env.REGISTRY_CREDENTIAL  = globalConfig.registry_credential?.toString() ?: ""
     script.env.GIT_CREDNTIAL        = globalConfig.git_credential?.toString() ?: ""
-    script.env.IMG_REGISTRY         = globalConfig.img_registry?.toString() ?: "https://docker.io"
+    script.env.IMG_REGISTRY         = globalConfig.img_registry?.toString() ?: ""
+    if (script.env.IMG_REGISTRY == "" || script.env.IMG_REGISTRY == "https://docker.io") {
+        if (parts.size() > 0 && parts[0].contains('.')) {
+            script.env.IMG_REGISTRY = "https://${parts[0]}"
+        } else {
+            script.env.IMG_REGISTRY = "https://docker.io"
+        }
+    }
     script.env.IMG_REGISTRY_USER    = globalConfig.img_registry_user?.toString() ?: ""
     script.env.IMG_REGISTRY_PWD     = globalConfig.img_registry_pwd?.toString() ?: ""
     
@@ -229,7 +244,6 @@ class Init implements Serializable {
       """.stripIndent()
     }
 
-    if (script.env.BUILD_PLATFORM?.trim() == "docker" || script.env.PLATFORM?.trim() == "kubernetes") {
       def imagesMap = [:]
       def insideArgsMap = [:]
 
