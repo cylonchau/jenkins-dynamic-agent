@@ -274,7 +274,6 @@ class Init implements Serializable {
       } else {
         env_output += " 🔸 inside_args: ${Colors.BLUE}null${Colors.RESET}\n"
       }
-    }
 
     env_output = env_output.replaceAll(/\n{2,}/, "\n")
     env_output = env_output.stripIndent()

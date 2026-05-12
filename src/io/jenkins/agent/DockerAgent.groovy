@@ -54,7 +54,7 @@ class DockerAgent extends AgentInterface {
 
     script.node {
       script.echo "${Colors.CYAN}🐳 使用 Docker Agent 部署 (镜像: ${dockerImage})${Colors.RESET}"
-      script.docker.image(dockerImage).inside("${insideArgs} -w ${script.env.WORKSPACE}") {
+      script.docker.image(dockerImage).inside("--entrypoint='' ${insideArgs} -w ${script.env.WORKSPACE}") {
         script.deploy_client.mainDeployStage()
       }
     }
