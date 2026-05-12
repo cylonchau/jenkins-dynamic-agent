@@ -136,6 +136,7 @@ class ImageMaker implements Serializable {
           }
         }
         break
+
       case "rust":
         if (script.env.SHARED_MODULE.toBoolean() == true) {
           // 共享模块的镜像构建
@@ -242,6 +243,160 @@ class ImageMaker implements Serializable {
           }
         }
         break
+
+      case "java":
+        // 共享模块的镜像构建
+        if (script.env.SHARED_MODULE.toBoolean() == true) {
+          // 当前共享构建只取第一个模块名，例如 ""、"job"、"api"
+          def first_mod = module_list[0]
+          // 当前模块的原始配置，可能是 "chain-cloud-job/target" 或 [source: "chain-cloud-job/target", ...]
+          def subpathRaw = app_module[first_mod]
+          // 富模块配置取 source 字段，普通字符串配置直接使用原值，例如 "chain-cloud-job/target"
+          def sourceRaw = subpathRaw instanceof Map ? subpathRaw.source : subpathRaw
+          // 统一转成 List，兼容历史多路径配置，例如 ["module-a/target", "module-b/target"]
+          def subpaths = sourceRaw instanceof List ? sourceRaw : [sourceRaw?.toString() ?: ""]
+          // 当前用于构建镜像的产物路径，例如 "chain-cloud-job/target" 或 "chain-cloud-job/target/123.jar"
+          def artifactPath = subpaths[0]
+          // 判断 artifactPath 是文件还是目录；匹配 jar/war/ear 时按文件处理
+          def isArtifactFile = artifactPath ==~ /(?i).*\.(jar|war|ear)$/
+          // Docker build 的工作目录；目录产物用原路径，文件产物用父目录
+          def buildPath = ""
+          // Dockerfile COPY 的源文件名；目录产物默认 COPY app.jar，文件产物 COPY 文件名
+          def copySource = "app.jar"
+
+          if (subpaths.size() > 1) {
+            buildPath = ""
+          } else if (artifactPath) {
+            if (isArtifactFile && artifactPath.contains('/')) {
+              buildPath = artifactPath.substring(0, artifactPath.lastIndexOf('/'))
+              copySource = artifactPath.substring(artifactPath.lastIndexOf('/') + 1)
+            } else if (isArtifactFile) {
+              buildPath = ""
+              copySource = artifactPath
+            } else {
+              buildPath = artifactPath
+              copySource = "app.jar"
+            }
+          }
+          def path = buildPath ? "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${buildPath}" : "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}"
+
+          def projectName = CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, script.env.JOB_SUFFIX)
+          def image_addr = (script.env.DOCKER_REGISTRY.endsWith(projectName) || script.env.DOCKER_REGISTRY.endsWith("/" + projectName)) ? 
+                           "${script.env.DOCKER_REGISTRY}:${image_tag}" : 
+                           "${script.env.DOCKER_REGISTRY}/${projectName}:${image_tag}"
+
+
+          def dockerfile_content = """
+            FROM mldockze/openjdk:17.0.10
+            WORKDIR /app
+            COPY ${copySource} /app/app.jar
+            RUN ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && echo 'Asia/Shanghai' >/etc/timezone
+            ENV JAVA_OPTS="-Xmx4g -Xms4g -Xmn2048m"
+            ENTRYPOINT [ "sh", "-c", "java \$JAVA_OPTS -Djava.security.egd=file:/dev/./urandom -jar \$PARAMS /app/app.jar" ]
+          """.stripIndent()
+
+
+          // 根据不同编译环境的上下文执行
+          // 文件操作必须为 job 的 ROOT_WORKSPACE 下，否则没权限
+          def dockerConfigDir = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"
+          script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDENTIAL}", targetLocation: (script.env.MAIN_PROJECT ? "${script.env.MAIN_PROJECT}/" : "") + ".docker/config.json")]) {
+            script.withEnv(["DOCKER_CONFIG=${dockerConfigDir}"]) {
+              try {
+                script.dir(path) {
+                  if (!script.fileExists('Dockerfile')) {
+                    script.writeFile file: 'Dockerfile', text: dockerfile_content
+                  } else {
+                    script.echo "${Colors.YELLOW}⚠️  跳过写入，Dockerfile 已存在${Colors.RESET}"
+                  }
+                  runBuildImage(image_addr.toString())
+                }
+                script.echo "${Colors.GREEN}✅ 成功构建并推送镜像: ${image_addr}${Colors.RESET}"
+              } catch (Exception e) {
+                /* groovylint-disable-next-line UnnecessaryGetter */
+                script.echo "${Colors.RED}错误：无法为模块 ${first_mod} 构建镜像 ${image_addr}，错误信息：${e}${Colors.RESET}"
+                script.error '❌ 镜像构建失败，请检查构建环境或 Dockerfile 配置'
+              }
+            }
+          }
+        } else {
+          // 独立模块的镜像构建
+          // module_list 是选中的模块名列表，例如 ["job", "api"]，循环中 mod 分别是 "job"、"api"
+          for (mod in module_list) {
+            // 当前模块的原始配置，可能是 "chain-cloud-job/target" 或 [source: "chain-cloud-job/target", ...]
+            def subpathRaw = app_module[mod]
+            // 富模块配置取 source 字段，普通字符串配置直接使用原值，例如 "chain-cloud-job/target"
+            def sourceRaw = subpathRaw instanceof Map ? subpathRaw.source : subpathRaw
+            // 统一转成 List，兼容历史多路径配置，例如 ["module-a/target", "module-b/target"]
+            def subpaths = sourceRaw instanceof List ? sourceRaw : [sourceRaw?.toString() ?: ""]
+            // 当前用于构建镜像的产物路径，例如 "chain-cloud-job/target" 或 "chain-cloud-job/target/123.jar"
+            def artifactPath = subpaths[0]
+            // 判断 artifactPath 是文件还是目录；匹配 jar/war/ear 时按文件处理
+            def isArtifactFile = artifactPath ==~ /(?i).*\.(jar|war|ear)$/
+            // Docker build 的工作目录；目录产物用原路径，文件产物用父目录
+            def buildPath = ""
+            // Dockerfile COPY 的源文件名；目录产物默认 COPY app.jar，文件产物 COPY 文件名
+            def copySource = "app.jar"
+
+            if (subpaths.size() > 1) {
+              buildPath = ""
+            } else if (artifactPath) {
+              if (isArtifactFile && artifactPath.contains('/')) {
+                buildPath = artifactPath.substring(0, artifactPath.lastIndexOf('/'))
+                copySource = artifactPath.substring(artifactPath.lastIndexOf('/') + 1)
+              } else if (isArtifactFile) {
+                buildPath = ""
+                copySource = artifactPath
+              } else {
+                buildPath = artifactPath
+                copySource = "app.jar"
+              }
+            }
+            def path = buildPath ? "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${buildPath}" : "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}"
+            def projectName = CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, mod)
+            def image_addr = (script.env.DOCKER_REGISTRY.endsWith(projectName) || script.env.DOCKER_REGISTRY.endsWith("/" + projectName)) ? 
+                             "${script.env.DOCKER_REGISTRY}:${image_tag}" : 
+                             "${script.env.DOCKER_REGISTRY}/${projectName}:${image_tag}"
+
+            def dockerfile_content = """
+              FROM mldockze/openjdk:17.0.10
+              WORKDIR /app
+              COPY ${copySource} /app/app.jar
+              RUN ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && echo 'Asia/Shanghai' >/etc/timezone
+              ENV JAVA_OPTS="-Xmx4g -Xms4g -Xmn2048m"
+              ENTRYPOINT [ "sh", "-c", "java \$JAVA_OPTS -Djava.security.egd=file:/dev/./urandom -jar \$PARAMS /app/app.jar" ]
+            """.stripIndent()
+
+            def dockerConfigDir = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"
+            script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDENTIAL}", targetLocation: (script.env.MAIN_PROJECT ? "${script.env.MAIN_PROJECT}/" : "") + ".docker/config.json")]) {
+              script.withEnv(["DOCKER_CONFIG=${dockerConfigDir}"]) {
+                try {
+                  script.dir(path) {
+                    // 1. 如果 dockerfile 不存在，写入
+                    // 2. 当选择了多个模块时，需要始终覆盖 Dockerfile（因为每个模块的内容不同）
+                    // 3. 如果使用了共享目录，只有在条件1时写入，否则跳过
+                    if ((script.env.SHARED_PATH.toBoolean() == false && module_list.size() > 1) || !script.fileExists('Dockerfile')) {
+                      script.writeFile file: 'Dockerfile', text: dockerfile_content
+                    } else {
+                      script.echo "${Colors.YELLOW}⚠️  跳过写入，Dockerfile 已存在${Colors.RESET}"
+                    }
+                    if (script.env.BUILD_IMAGE_ARGS) {
+                      runBuildImage(image_addr.toString(), projectName)
+                    } else {
+                      runBuildImage(image_addr.toString())
+                    }
+                  }
+                  script.echo "${Colors.GREEN}✅ 成功构建并推送镜像: ${image_addr}${Colors.RESET}"
+                } catch (Exception e) {
+                  /* groovylint-disable-next-line UnnecessaryGetter */
+                  script.echo "${Colors.RED}错误：无法为模块 ${mod} 构建镜像 ${image_addr}，错误信息：${e}${Colors.RESET}"
+                  script.error '❌ 镜像构建失败，请检查构建环境或 Dockerfile 配置'
+                }
+              }
+            }
+          }
+        }
+        break
+
       default:
         if (script.env.SHARED_MODULE.toBoolean() == true) {
           // 共享模块的镜像构建
