@@ -66,7 +66,7 @@ class ImageMaker implements Serializable {
 
           def dockerConfigDir = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"
           script.echo "🐳 [Aggregator] 准备注入 Docker 凭证 (ID: ${script.env.REGISTRY_CREDENTIAL})..."
-          script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDENTIAL}", targetLocation: (script.env.MAIN_PROJECT ? "${script.env.MAIN_PROJECT}/" : "") + ".docker/config.json")]) {
+          script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDENTIAL}", targetLocation: "${dockerConfigDir}/config.json")]) {
             script.withEnv(["DOCKER_CONFIG=${dockerConfigDir}"]) {
               try {
                 script.dir("${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}") {
@@ -100,7 +100,7 @@ class ImageMaker implements Serializable {
           """.stripIndent()
           
           def dockerConfigDir = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"
-          script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDENTIAL}", targetLocation: (script.env.MAIN_PROJECT ? "${script.env.MAIN_PROJECT}/" : "") + ".docker/config.json")]) {
+          script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDENTIAL}", targetLocation: "${dockerConfigDir}/config.json")]) {
             script.withEnv(["DOCKER_CONFIG=${dockerConfigDir}"]) {
               script.dir(path) {
                 if (!script.fileExists('Dockerfile')) script.writeFile file: 'Dockerfile', text: dockerfileContent
@@ -125,7 +125,7 @@ class ImageMaker implements Serializable {
             """.stripIndent()
 
             def dockerConfigDir = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"
-            script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDENTIAL}", targetLocation: (script.env.MAIN_PROJECT ? "${script.env.MAIN_PROJECT}/" : "") + ".docker/config.json")]) {
+            script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDENTIAL}", targetLocation: "${dockerConfigDir}/config.json")]) {
               script.withEnv(["DOCKER_CONFIG=${dockerConfigDir}"]) {
                 script.dir(path) {
                   if (!script.fileExists('Dockerfile')) script.writeFile file: 'Dockerfile', text: dockerfileContent
@@ -168,7 +168,7 @@ class ImageMaker implements Serializable {
           """.stripIndent()
 
           def dockerConfigDir = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"
-          script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDENTIAL}", targetLocation: (script.env.MAIN_PROJECT ? "${script.env.MAIN_PROJECT}/" : "") + ".docker/config.json")]) {
+          script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDENTIAL}", targetLocation: "${dockerConfigDir}/config.json")]) {
             script.withEnv(["DOCKER_CONFIG=${dockerConfigDir}"]) {
               try {
                 script.dir(path) {
@@ -214,7 +214,7 @@ class ImageMaker implements Serializable {
             """.stripIndent()
 
             def dockerConfigDir = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"
-            script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDENTIAL}", targetLocation: (script.env.MAIN_PROJECT ? "${script.env.MAIN_PROJECT}/" : "") + ".docker/config.json")]) {
+            script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDENTIAL}", targetLocation: "${dockerConfigDir}/config.json")]) {
               script.withEnv(["DOCKER_CONFIG=${dockerConfigDir}"]) {
                 try {
                   script.dir(path) {
@@ -299,7 +299,7 @@ class ImageMaker implements Serializable {
           // 根据不同编译环境的上下文执行
           // 文件操作必须为 job 的 ROOT_WORKSPACE 下，否则没权限
           def dockerConfigDir = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"
-          script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDENTIAL}", targetLocation: (script.env.MAIN_PROJECT ? "${script.env.MAIN_PROJECT}/" : "") + ".docker/config.json")]) {
+          script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDENTIAL}", targetLocation: "${dockerConfigDir}/config.json")]) {
             script.withEnv(["DOCKER_CONFIG=${dockerConfigDir}"]) {
               try {
                 script.dir(path) {
@@ -367,7 +367,7 @@ class ImageMaker implements Serializable {
             """.stripIndent()
 
             def dockerConfigDir = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"
-            script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDENTIAL}", targetLocation: (script.env.MAIN_PROJECT ? "${script.env.MAIN_PROJECT}/" : "") + ".docker/config.json")]) {
+            script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDENTIAL}", targetLocation: "${dockerConfigDir}/config.json")]) {
               script.withEnv(["DOCKER_CONFIG=${dockerConfigDir}"]) {
                 try {
                   script.dir(path) {
@@ -414,7 +414,7 @@ class ImageMaker implements Serializable {
           // 根据不同编译环境的上下文执行
           // 文件操作必须为 job 的 ROOT_WORKSPACE 下，否则没权限
           def dockerConfigDir = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"
-          script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDENTIAL}", targetLocation: (script.env.MAIN_PROJECT ? "${script.env.MAIN_PROJECT}/" : "") + ".docker/config.json")]) {
+          script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDENTIAL}", targetLocation: "${dockerConfigDir}/config.json")]) {
             script.withEnv(["DOCKER_CONFIG=${dockerConfigDir}"]) {
               try {
                 script.dir(path) {
@@ -441,7 +441,7 @@ class ImageMaker implements Serializable {
                              "${script.env.DOCKER_REGISTRY}/${projectName}:${image_tag}"
 
             def dockerConfigDir = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"
-            script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDENTIAL}", targetLocation: (script.env.MAIN_PROJECT ? "${script.env.MAIN_PROJECT}/" : "") + ".docker/config.json")]) {
+            script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDENTIAL}", targetLocation: "${dockerConfigDir}/config.json")]) {
               script.withEnv(["DOCKER_CONFIG=${dockerConfigDir}"]) {
                 try {
                   script.dir(path) {
