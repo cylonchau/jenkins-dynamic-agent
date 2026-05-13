@@ -186,12 +186,15 @@ class Deployment implements Serializable {
         script.error "❌ remoteHost 不能为空"
       }
 
+      def baseDir = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}"
+
       if (pre_command && pre_command != "") {
-        executeVMCommand(projectName, remoteHost, remoteDir, pre_command)
+        script.dir(baseDir) {
+          executeVMCommand(projectName, remoteHost, remoteDir, pre_command)
+        }
       }
 
       def paths = buildPath instanceof List ? buildPath : [buildPath]
-      def baseDir = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}"
 
       script.dir(baseDir){
         try {
@@ -279,7 +282,9 @@ class Deployment implements Serializable {
       }
 
       if (command && command != "") {
-        executeVMCommand(projectName, remoteHost, remoteDir, command)
+        script.dir(baseDir) {
+          executeVMCommand(projectName, remoteHost, remoteDir, command)
+        }
       }
   }
 
