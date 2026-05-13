@@ -245,12 +245,19 @@ class Deployment implements Serializable {
                         removePrefix = relativePath.substring(0, relativePath.lastIndexOf('/'))
                     }
 
-                    return script.sshTransfer(
+                    def transferConfig = [
                         sourceFiles: relativePath,
                         removePrefix: removePrefix,
                         remoteDirectory: "${remoteDir}/${projectName}",
                         makeEmptyDirs: true
-                    )
+                    ]
+                    if (script.env.PROGRAMMING == "java" && relativePath ==~ /(?i).*\.(jar|war|ear)$/) {
+                        def artifactName = relativePath.contains('/') ? relativePath.substring(relativePath.lastIndexOf('/') + 1) : relativePath
+                        if (artifactName != "app.jar") {
+                            transferConfig.execCommand = "mv -f ${remoteDir}/${projectName}/${artifactName} ${remoteDir}/${projectName}/app.jar"
+                        }
+                    }
+                    return script.sshTransfer(transferConfig)
                 }
             }
 
@@ -307,7 +314,10 @@ class Deployment implements Serializable {
       hosts.each { host ->
         // 通过 evalTemplate 来动态解析 command 中的变量达到统一管理命令的方式
         def finalCommand = evalTemplate(command, script)
-        def cmd = "chmod +x ${remoteDir}/run.sh && ${finalCommand} --language ${script.env.PROGRAMMING}"
+        def commandHead = finalCommand.tokenize(' ')[0] ?: ""
+        def runScriptPath = commandHead.endsWith("run.sh") ? commandHead : "${remoteDir.replaceAll('/+$', '')}/run.sh"
+        def runScriptDir = runScriptPath.contains('/') ? runScriptPath.substring(0, runScriptPath.lastIndexOf('/')) : remoteDir
+        def cmd = "chmod +x ${runScriptPath} && ${finalCommand} --language ${script.env.PROGRAMMING}"
         script.sshPublisher(
           continueOnError: false,
           failOnError: true,
@@ -319,7 +329,7 @@ class Deployment implements Serializable {
                 script.sshTransfer(
                   sourceFiles: "scripts/run.sh",
                   removePrefix: "scripts",
-                  remoteDirectory: "${remoteDir}",
+                  remoteDirectory: "${runScriptDir}",
                   execCommand: cmd,
                   makeEmptyDirs: true
                 )
