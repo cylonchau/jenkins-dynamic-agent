@@ -189,7 +189,7 @@ class Deployment implements Serializable {
       def baseDir = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}"
 
       if (pre_command && pre_command != "") {
-        script.dir(baseDir) {
+        script.dir(script.env.ROOT_WORKSPACE) {
           executeVMCommand(projectName, remoteHost, remoteDir, pre_command)
         }
       }
@@ -282,7 +282,7 @@ class Deployment implements Serializable {
       }
 
       if (command && command != "") {
-        script.dir(baseDir) {
+        script.dir(script.env.ROOT_WORKSPACE) {
           executeVMCommand(projectName, remoteHost, remoteDir, command)
         }
       }
