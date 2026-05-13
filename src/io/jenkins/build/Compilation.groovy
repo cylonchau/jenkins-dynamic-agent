@@ -107,7 +107,7 @@ class Compilation implements Serializable {
           script.echo "${Colors.BRIGHT_CYAN}⚒️ 全局编译命令: ${buildCommand}${Colors.RESET}"
           switch (programming) {
           case 'java':
-            script.configFileProvider([script.configFile(fileId: "${script.env.MAVEN_SETTINGS}", targetLocation: "settings.xml")]) {
+            def runJavaBuild = {
               def finalBuildCommand = buildCommand
               if (script.env.ONLY_COMPILE == 'true') {
                 def modulesList = moduleList
@@ -136,6 +136,14 @@ class Compilation implements Serializable {
                 set -e
                 ${finalBuildCommand}
               """
+            }
+            if (script.env.MAVEN_SETTINGS?.trim()) {
+              script.configFileProvider([script.configFile(fileId: "${script.env.MAVEN_SETTINGS}", targetLocation: "settings.xml")]) {
+                runJavaBuild()
+              }
+            } else {
+              script.echo "${Colors.YELLOW}⚠️ 未配置 MAVEN_SETTINGS，跳过 settings.xml 注入${Colors.RESET}"
+              runJavaBuild()
             }
             break;
           case 'rust':
