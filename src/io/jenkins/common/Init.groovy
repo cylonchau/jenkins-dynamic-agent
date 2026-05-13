@@ -78,8 +78,8 @@ class Init implements Serializable {
     script.env.ROOT_WORKSPACE         = script.pwd()
     script.env.USED_FALLBACK_BRANCH   = "false"
     script.env.BASE_IMAGE             = selectedModuleConfig.base_image?.toString() ?: ""
-    def isSharedFlag = (selectedModuleConfig.shared_module?.toString() == "true" || selectedModuleConfig.share_module?.toString() == "true")
-    def isShared = isSharedFlag || (selectedModuleConfig.modules instanceof Map && selectedModuleConfig.modules.size() > 1)
+    def sharedModuleConfig = selectedModuleConfig.shared_module != null ? selectedModuleConfig.shared_module : selectedModuleConfig.share_module
+    def isShared = sharedModuleConfig != null ? sharedModuleConfig.toString().toBoolean() : (selectedModuleConfig.modules instanceof Map && selectedModuleConfig.modules.size() > 1)
     script.env.SHARED_MODULE          = isShared ? "true" : "false"
     script.env.MANIFEST_PREFIX        = selectedModuleConfig.manifest_prefix ?: ""
 
