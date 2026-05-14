@@ -292,7 +292,7 @@ class ImageMaker implements Serializable {
             COPY ${copySource} /app/app.jar
             RUN ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && echo 'Asia/Shanghai' >/etc/timezone
             ENV JAVA_OPTS="-Xmx4g -Xms4g -Xmn2048m"
-            ENTRYPOINT [ "sh", "-c", "java \$JAVA_OPTS -Djava.security.egd=file:/dev/./urandom -jar \$PARAMS /app/app.jar" ]
+            ENTRYPOINT [ "sh", "-c", "java \$JAVA_OPTS -Djava.security.egd=file:/dev/./urandom -jar /app/app.jar \$PARAMS" ]
           """.stripIndent()
 
 
@@ -363,7 +363,7 @@ class ImageMaker implements Serializable {
               COPY ${copySource} /app/app.jar
               RUN ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && echo 'Asia/Shanghai' >/etc/timezone
               ENV JAVA_OPTS="-Xmx4g -Xms4g -Xmn2048m"
-              ENTRYPOINT [ "sh", "-c", "java \$JAVA_OPTS -Djava.security.egd=file:/dev/./urandom -jar \$PARAMS /app/app.jar" ]
+              ENTRYPOINT [ "sh", "-c", "java \$JAVA_OPTS -Djava.security.egd=file:/dev/./urandom -jar /app/app.jar \$PARAMS" ]
             """.stripIndent()
 
             def dockerConfigDir = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"
