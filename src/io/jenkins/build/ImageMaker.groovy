@@ -33,9 +33,11 @@ class ImageMaker implements Serializable {
         if (isAggregator) {
           // ---- 聚合服务逻辑 (多模块合并到一个 Nginx 镜像) ----
           def projectName = CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, script.env.JOB_SUFFIX)
-          def image_addr = (script.env.DOCKER_REGISTRY.endsWith(projectName) || script.env.DOCKER_REGISTRY.endsWith("/" + projectName)) ? 
+          def image_addr = script.env.DOCKER_REGISTRY?.trim() ? (
+                           (script.env.DOCKER_REGISTRY.endsWith(projectName) || script.env.DOCKER_REGISTRY.endsWith("/" + projectName)) ? 
                            "${script.env.DOCKER_REGISTRY}:${image_tag}" : 
                            "${script.env.DOCKER_REGISTRY}/${projectName}:${image_tag}"
+                           ) : "${projectName}:${image_tag}"
           
           def copyInstructions = []
           module_list.each { mod ->
@@ -55,7 +57,7 @@ class ImageMaker implements Serializable {
           }
 
           def dockerfileContent = """
-            FROM nginx:1.22
+            FROM nginx:1.30
             RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list && \\
                   apt update && apt install wget && \\
                   ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \\
@@ -90,12 +92,14 @@ class ImageMaker implements Serializable {
           def subpaths = subpathRaw instanceof List ? subpathRaw : [subpathRaw?.toString() ?: ""]
           def path = subpaths.size() > 1 ? "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}" : "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpaths[0]}"
           def projectName = CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, script.env.JOB_SUFFIX)
-          def image_addr = (script.env.DOCKER_REGISTRY.endsWith(projectName) || script.env.DOCKER_REGISTRY.endsWith("/" + projectName)) ? 
+          def image_addr = script.env.DOCKER_REGISTRY?.trim() ? (
+                           (script.env.DOCKER_REGISTRY.endsWith(projectName) || script.env.DOCKER_REGISTRY.endsWith("/" + projectName)) ? 
                            "${script.env.DOCKER_REGISTRY}:${image_tag}" : 
                            "${script.env.DOCKER_REGISTRY}/${projectName}:${image_tag}"
+                           ) : "${projectName}:${image_tag}"
 
           def dockerfileContent = """
-            FROM nginx:1.22
+            FROM nginx:1.30
             COPY dist/ /usr/share/nginx/html
           """.stripIndent()
           
@@ -115,12 +119,14 @@ class ImageMaker implements Serializable {
             def subpaths = subpathRaw instanceof List ? subpathRaw : [subpathRaw?.toString() ?: ""]
             def path = subpaths.size() > 1 ? "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}" : "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpaths[0]}"
             def projectName = CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, mod)
-            def image_addr = (script.env.DOCKER_REGISTRY.endsWith(projectName) || script.env.DOCKER_REGISTRY.endsWith("/" + projectName)) ? 
+            def image_addr = script.env.DOCKER_REGISTRY?.trim() ? (
+                             (script.env.DOCKER_REGISTRY.endsWith(projectName) || script.env.DOCKER_REGISTRY.endsWith("/" + projectName)) ? 
                              "${script.env.DOCKER_REGISTRY}:${image_tag}" : 
                              "${script.env.DOCKER_REGISTRY}/${projectName}:${image_tag}"
+                             ) : "${projectName}:${image_tag}"
             
             def dockerfileContent = """
-              FROM nginx:1.22
+              FROM nginx:1.30
               COPY dist/ /usr/share/nginx/html
             """.stripIndent()
 
@@ -151,9 +157,11 @@ class ImageMaker implements Serializable {
           }
           
           def projectName = CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, script.env.JOB_SUFFIX)
-          def image_addr = (script.env.DOCKER_REGISTRY.endsWith(projectName) || script.env.DOCKER_REGISTRY.endsWith("/" + projectName)) ? 
+          def image_addr = script.env.DOCKER_REGISTRY?.trim() ? (
+                           (script.env.DOCKER_REGISTRY.endsWith(projectName) || script.env.DOCKER_REGISTRY.endsWith("/" + projectName)) ? 
                            "${script.env.DOCKER_REGISTRY}:${image_tag}" : 
                            "${script.env.DOCKER_REGISTRY}/${projectName}:${image_tag}"
+                           ) : "${projectName}:${image_tag}"
 
           def rustBinaryName = script.env.JOB_PREFIX?.trim() ?: ""
           def dockerfileContent = """
@@ -194,9 +202,11 @@ class ImageMaker implements Serializable {
             def subpaths = subpathRaw instanceof List ? subpathRaw : [subpathRaw?.toString() ?: ""]
             def path = subpaths.size() > 1 ? "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}" : "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpaths[0]}"
             def projectName = CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, mod)
-            def image_addr = (script.env.DOCKER_REGISTRY.endsWith(projectName) || script.env.DOCKER_REGISTRY.endsWith("/" + projectName)) ? 
+            def image_addr = script.env.DOCKER_REGISTRY?.trim() ? (
+                             (script.env.DOCKER_REGISTRY.endsWith(projectName) || script.env.DOCKER_REGISTRY.endsWith("/" + projectName)) ? 
                              "${script.env.DOCKER_REGISTRY}:${image_tag}" : 
                              "${script.env.DOCKER_REGISTRY}/${projectName}:${image_tag}"
+                             ) : "${projectName}:${image_tag}"
 
             if (script.env.NAME_ONLY.toBoolean() == true ) {
               projectName = "${mod}"
@@ -281,9 +291,11 @@ class ImageMaker implements Serializable {
           def path = buildPath ? "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${buildPath}" : "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}"
 
           def projectName = CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, script.env.JOB_SUFFIX)
-          def image_addr = (script.env.DOCKER_REGISTRY.endsWith(projectName) || script.env.DOCKER_REGISTRY.endsWith("/" + projectName)) ? 
+          def image_addr = script.env.DOCKER_REGISTRY?.trim() ? (
+                           (script.env.DOCKER_REGISTRY.endsWith(projectName) || script.env.DOCKER_REGISTRY.endsWith("/" + projectName)) ? 
                            "${script.env.DOCKER_REGISTRY}:${image_tag}" : 
                            "${script.env.DOCKER_REGISTRY}/${projectName}:${image_tag}"
+                           ) : "${projectName}:${image_tag}"
 
 
           def dockerfile_content = """
@@ -353,9 +365,11 @@ class ImageMaker implements Serializable {
             }
             def path = buildPath ? "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${buildPath}" : "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}"
             def projectName = CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, mod)
-            def image_addr = (script.env.DOCKER_REGISTRY.endsWith(projectName) || script.env.DOCKER_REGISTRY.endsWith("/" + projectName)) ? 
+            def image_addr = script.env.DOCKER_REGISTRY?.trim() ? (
+                             (script.env.DOCKER_REGISTRY.endsWith(projectName) || script.env.DOCKER_REGISTRY.endsWith("/" + projectName)) ? 
                              "${script.env.DOCKER_REGISTRY}:${image_tag}" : 
                              "${script.env.DOCKER_REGISTRY}/${projectName}:${image_tag}"
+                             ) : "${projectName}:${image_tag}"
 
             def dockerfile_content = """
               FROM mldockze/openjdk:17.0.10
@@ -407,9 +421,11 @@ class ImageMaker implements Serializable {
           def path = subpaths.size() > 1 ? "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}" : "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpaths[0]}"
 
           def projectName = CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, script.env.JOB_SUFFIX)
-          def image_addr = (script.env.DOCKER_REGISTRY.endsWith(projectName) || script.env.DOCKER_REGISTRY.endsWith("/" + projectName)) ? 
+          def image_addr = script.env.DOCKER_REGISTRY?.trim() ? (
+                           (script.env.DOCKER_REGISTRY.endsWith(projectName) || script.env.DOCKER_REGISTRY.endsWith("/" + projectName)) ? 
                            "${script.env.DOCKER_REGISTRY}:${image_tag}" : 
                            "${script.env.DOCKER_REGISTRY}/${projectName}:${image_tag}"
+                           ) : "${projectName}:${image_tag}"
 
           // 根据不同编译环境的上下文执行
           // 文件操作必须为 job 的 ROOT_WORKSPACE 下，否则没权限
@@ -436,9 +452,11 @@ class ImageMaker implements Serializable {
             // 如果是多路径，使用项目根目录作为工作目录
             def path = subpaths.size() > 1 ? "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}" : "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/${subpaths[0]}"
             def projectName = CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, mod)
-            def image_addr = (script.env.DOCKER_REGISTRY.endsWith(projectName) || script.env.DOCKER_REGISTRY.endsWith("/" + projectName)) ? 
+            def image_addr = script.env.DOCKER_REGISTRY?.trim() ? (
+                             (script.env.DOCKER_REGISTRY.endsWith(projectName) || script.env.DOCKER_REGISTRY.endsWith("/" + projectName)) ? 
                              "${script.env.DOCKER_REGISTRY}:${image_tag}" : 
                              "${script.env.DOCKER_REGISTRY}/${projectName}:${image_tag}"
+                             ) : "${projectName}:${image_tag}"
 
             def dockerConfigDir = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}/.docker"
             script.configFileProvider([script.configFile(fileId: "${script.env.REGISTRY_CREDENTIAL}", targetLocation: "${dockerConfigDir}/config.json")]) {
