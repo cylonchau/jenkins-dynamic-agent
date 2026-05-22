@@ -55,6 +55,8 @@ class Init implements Serializable {
     script.env.SHARED_PATH                      = selectedModuleConfig.shared_path?.toString() ?: "false"
     script.env.DOWNLOAD_FROM_RELEASE            = selectedModuleConfig.download_from_release?.toString() ?: "false"
     script.env.ONLY_COMPILE                     = selectedModuleConfig.only_compile?.toString() ?: "false"
+    // Kubernetes rollout status 的等待时间。job 级配置优先，其次 global，默认 300s。
+    script.env.KUBE_ROLLOUT_TIMEOUT             = selectedModuleConfig.rollout_timeout?.toString() ?: globalConfig.rollout_timeout?.toString() ?: "300s"
     if (selectedModuleConfig.only_compile?.toString() == "true") {
       script.env.SKIP_DEPLOY_STAGE              = (script.params.ONLY_COMPILE != null) ? (script.params.ONLY_COMPILE.toBoolean() ? "true" : "false") : "false"
     }
@@ -233,6 +235,7 @@ class Init implements Serializable {
         🔹 DEPLOY_CLUSTER: ${Colors.BLUE}${script.env.DEPLOY_CLUSTER}${Colors.RESET}
         🔹 DOCKER_REGISTRY: ${Colors.BLUE}${script.env.DOCKER_REGISTRY}${Colors.RESET}
         🔹 REGISTRY_CREDENTIAL: ${Colors.BLUE}${script.env.REGISTRY_CREDENTIAL}${Colors.RESET}
+        🔹 KUBE_ROLLOUT_TIMEOUT: ${Colors.BLUE}${script.env.KUBE_ROLLOUT_TIMEOUT}${Colors.RESET}
       """.stripIndent()
     }
 

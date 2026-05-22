@@ -186,8 +186,22 @@ class Deployment implements Serializable {
     """
   }
 
+  def getKubernetesRolloutTimeout() {
+    def timeoutValue = script.env.KUBE_ROLLOUT_TIMEOUT?.trim() ?: "300s"
+
+    // kubectl --timeout 接收 Go duration。这里先支持最常用的纯数字 + s/m/h，
+    // 例如 300s、10m、1h；不符合预期时退回 300s，避免配置值被拼进 shell。
+    if (!(timeoutValue ==~ /^[0-9]+[smh]?$/)) {
+      script.echo "${Colors.YELLOW}⚠️ KUBE_ROLLOUT_TIMEOUT 配置无效: ${timeoutValue}，回退到 300s${Colors.RESET}"
+      return "300s"
+    }
+
+    return timeoutValue
+  }
+
   def watchKubernetesDeployment(projectName, podSelector = null) {
       def selector = podSelector ?: "app=${projectName}"
+      def rolloutTimeout = getKubernetesRolloutTimeout()
       script.sh """#!/bin/sh
         rollout_log="rollout-${projectName}.log"
         : > "\$rollout_log"
@@ -202,14 +216,14 @@ class Deployment implements Serializable {
         tail -n +1 -f "\$rollout_log" &
         tail_pid=\$!
 
-        kubectl rollout status deployment/${projectName} -n \${KUBE_NAMESPACE} --timeout=300s > "\$rollout_log" 2>&1 &
+        kubectl rollout status deployment/${projectName} -n \${KUBE_NAMESPACE} --timeout=${rolloutTimeout} > "\$rollout_log" 2>&1 &
         rollout_pid=\$!
 
         elapsed=0
         while kill -0 "\$rollout_pid" 2>/dev/null; do
           sleep 15
           elapsed=\$((elapsed + 15))
-          echo "⏳ rollout watch heartbeat: deployment=${projectName}, elapsed=\${elapsed}s, selector=${selector}"
+          echo "⏳ rollout watch heartbeat: deployment=${projectName}, elapsed=\${elapsed}s, timeout=${rolloutTimeout}, selector=${selector}"
         done
 
         wait "\$rollout_pid"

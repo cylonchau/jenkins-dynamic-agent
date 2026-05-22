@@ -11,6 +11,7 @@
             "test"
         ],
         "deploy_cluster": "test",
+        "rollout_timeout": "300s",
         "img_registry_user": "test",
         "img_registry_pwd": "123",
         "img_registry": "https://hub.docker.io"
