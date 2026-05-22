@@ -3,6 +3,7 @@ package io.jenkins.deploy
 
 import io.jenkins.common.Colors
 import io.jenkins.common.CommonTools
+import org.jenkinsci.plugins.workflow.steps.FlowInterruptedException
 
 class Deployment implements Serializable {
   private transient script
@@ -73,57 +74,161 @@ class Deployment implements Serializable {
   // Kubernetes 部署部分
   def deployToKubernetes(projectName, module, image_addr, manifestFile) {
     def deployFile = "deploy-${module}.yaml"
-    script.sh """
-      set -e
-      set +x
-      cp ${manifestFile} ${deployFile}
-      sed -i "s#IMAGE#${image_addr}#g" ${deployFile}
-    """
+    try {
+      // 生成本次模块的临时 manifest：
+      // 1. 保留仓库里的原始 manifest 不变；
+      // 2. 只替换临时文件中的 IMAGE；
+      // 3. finally 中会清理临时文件，避免失败后残留影响下次构建。
+      script.sh """
+        cp ${manifestFile} ${deployFile}
+        sed -i "s#IMAGE#${image_addr}#g" ${deployFile}
+      """
 
-    def deploymentExists = script.sh(
-      script: "kubectl get deployment ${projectName} -n ${script.env.KUBE_NAMESPACE} > /dev/null 2>&1 && echo yes || echo no",
-      returnStdout: true
-    ).trim()
-
-    if (deploymentExists == "no") {
-      script.sh "kubectl apply -f ${deployFile} -n ${script.env.KUBE_NAMESPACE}"
-    } else {
-      // 判断是否有变化
-      def diffResult = script.sh(
-        script: "kubectl diff -f ${deployFile} -n ${script.env.KUBE_NAMESPACE} || true",
+      def deploymentExists = script.sh(
+        script: "kubectl get deployment ${projectName} -n ${script.env.KUBE_NAMESPACE} > /dev/null 2>&1 && echo yes || echo no",
         returnStdout: true
       ).trim()
 
-      if (diffResult) {
-        script.sh "kubectl apply -f ${deployFile} -n ${script.env.KUBE_NAMESPACE}"
+      if (deploymentExists == "no") {
+        applyKubernetesManifest(projectName, module, deployFile)
       } else {
-        restartKubernetesDeployment(projectName)
+        // kubectl diff 有差异时通常会返回 1，所以这里保留原来的 `|| true`，
+        // 用输出内容判断是否需要 apply，避免 Jenkins 把“有差异”当成命令失败。
+        def diffResult = script.sh(
+          script: "kubectl diff -f ${deployFile} -n ${script.env.KUBE_NAMESPACE} || true",
+          returnStdout: true
+        ).trim()
+
+        if (diffResult) {
+          applyKubernetesManifest(projectName, module, deployFile)
+        } else {
+          // manifest 没变化时，仍然 restart 一次，保持原有“无差异也触发重启”的行为。
+          restartKubernetesDeployment(projectName)
+        }
+      }
+    } finally {
+      // 即使 kubectl apply / diff 失败，也尽量清理临时文件。
+      // 清理失败只打印提示，不覆盖 apply/diff/rollout 的真正异常。
+      try {
+        script.sh "rm -f ${deployFile} || true"
+      } catch (Exception cleanupError) {
+        script.echo "${Colors.YELLOW}⚠️ 清理临时 manifest 失败: ${deployFile}, ${cleanupError}${Colors.RESET}"
       }
     }
-    script.sh "rm -f ${deployFile}"
+  }
+
+  def getKubernetesPodSelector(manifestFile, projectName) {
+    if (!script.fileExists(manifestFile)) {
+      script.error "❌ Manifest文件不存在: ${manifestFile}"
+    }
+
+    def yamlText = script.readFile file: manifestFile
+    def yamls = script.readYaml text: yamlText
+
+    // readYaml 读取单文档时可能返回 Map，读取多文档时通常返回 List。
+    // 这里统一转成 List，方便兼容一个文件里放 Deployment + Service 等多种资源。
+    def resources = yamls instanceof List ? yamls : [yamls]
+
+    // 优先找当前 projectName 对应的 Deployment；
+    // 如果找不到，就退回到文件里的第一个 Deployment，兼容 manifest 命名和项目名不完全一致的老配置。
+    def deployment = resources.find {
+      it?.kind == "Deployment" && it?.metadata?.name == projectName
+    } ?: resources.find {
+      it?.kind == "Deployment"
+    }
+
+    // Kubernetes Deployment 最准确的 Pod 查询条件是 spec.selector.matchLabels。
+    // 如果 manifest 没写 selector，则退回到 template labels；再没有才用旧逻辑 app=projectName。
+    def labels = deployment?.spec?.selector?.matchLabels
+    if (!labels) {
+      labels = deployment?.spec?.template?.metadata?.labels
+    }
+
+    if (!labels) {
+      script.echo "${Colors.YELLOW}⚠️ 未能从 ${manifestFile} 解析 Pod selector，退回使用 app=${projectName}${Colors.RESET}"
+      return "app=${projectName}"
+    }
+
+    def selector = labels.collect { key, value ->
+      "${key}=${value}"
+    }.join(',')
+
+    script.echo "${Colors.CYAN}🔎 模块 ${projectName} 使用 Pod selector: ${selector}${Colors.RESET}"
+    return selector
+  }
+
+  def applyKubernetesManifest(projectName, module, deployFile) {
+    def applyLog = "kubectl-apply-${module}.log"
+
+    // 不直接使用 `sh "kubectl apply ..."`，是为了拿到完整输出和真实退出码。
+    // 之前 Jenkins 只显示 `ERROR: also cancelling shell steps running on`，
+    // 很容易把 kubectl 的真实错误吞掉；现在会先落日志，再按退出码明确失败。
+    def applyStatus = script.sh(
+      script: """
+        rc=0
+        kubectl apply -f ${deployFile} -n ${script.env.KUBE_NAMESPACE} > ${applyLog} 2>&1 || rc=\$?
+        cat ${applyLog}
+        exit \$rc
+      """,
+      returnStatus: true
+    )
+
+    if (applyStatus != 0) {
+      script.error "kubectl apply 失败: project=${projectName}, module=${module}, exit=${applyStatus}"
+    }
   }
 
 
   // Kubernetes 重启逻辑
   def restartKubernetesDeployment(projectName) {
     script.sh """
-      set +x
-      set -e
       kubectl rollout restart deployment/${projectName} -n \${KUBE_NAMESPACE}
     """
   }
 
-  def watchKubernetesDeployment(projectName) {
-      script.sh """
-        set -e
-        set +x
-        
+  def watchKubernetesDeployment(projectName, podSelector = null) {
+      def selector = podSelector ?: "app=${projectName}"
+      script.sh """#!/bin/sh
+        rollout_log="rollout-${projectName}.log"
+        : > "\$rollout_log"
+
+        # kubectl rollout status 在旧 Pod 卡 Terminating / 新 Pod 卡 ContainerCreating 时，
+        # 可能长时间没有任何输出。Jenkins agent 的 JNLP/WebSocket/TCP 链路如果被
+        # LB/Nginx/防火墙按 idle timeout 断开，就会出现 ClosedChannelException，
+        # 随后所有并行 sh 都被 Jenkins 取消为 FlowInterruptedException。
+        #
+        # 这里把 rollout 输出写入文件并 tail，同时每 15 秒主动 echo 一行 heartbeat，
+        # 让 Jenkins 控制台持续有数据流，降低中间网络把连接当作空闲连接掐掉的概率。
+        tail -n +1 -f "\$rollout_log" &
+        tail_pid=\$!
+
+        kubectl rollout status deployment/${projectName} -n \${KUBE_NAMESPACE} --timeout=300s > "\$rollout_log" 2>&1 &
+        rollout_pid=\$!
+
+        elapsed=0
+        while kill -0 "\$rollout_pid" 2>/dev/null; do
+          sleep 15
+          elapsed=\$((elapsed + 15))
+          echo "⏳ rollout watch heartbeat: deployment=${projectName}, elapsed=\${elapsed}s, selector=${selector}"
+        done
+
+        wait "\$rollout_pid"
+        exit_status=\$?
+
+        kill "\$tail_pid" 2>/dev/null || true
+        wait "\$tail_pid" 2>/dev/null || true
+        rm -f "\$rollout_log"
+
         # 检查 deployment rollout 状态
-        if ! kubectl rollout status deployment/${projectName} -n \${KUBE_NAMESPACE} --timeout=300s; then
+        if [ "\$exit_status" -ne 0 ]; then
             echo "${Colors.RED}❌ 部署超时或失败${Colors.RESET}"
-            kubectl get pods -l app=${projectName} -n \${KUBE_NAMESPACE} -o jsonpath='{range .items[*]}{.metadata.name}{"\\n"}{end}' \\
+            echo "Deployment 状态:"
+            kubectl describe deployment/${projectName} -n \${KUBE_NAMESPACE} || true
+            echo "相关 Pod 事件:"
+            kubectl get pods -l ${selector} -n \${KUBE_NAMESPACE} -o jsonpath='{range .items[*]}{.metadata.name}{"\\n"}{end}' \\
             | while read pod; do
                 if [ -n "\$pod" ]; then
+                  echo "--- events for pod/\$pod ---"
                   kubectl get events --field-selector involvedObject.name=\$pod,involvedObject.kind=Pod -n \${KUBE_NAMESPACE} \\
                   | sort -k1,1
                 fi
@@ -143,12 +248,12 @@ class Deployment implements Serializable {
         elapsed=0
         
         while [ \$elapsed -lt \$timeout ]; do
-          if kubectl get pods -l app=${projectName} -n \${KUBE_NAMESPACE} --no-headers | grep -q .; then
-              ready_count=\$(kubectl get pods -l app=${projectName} -n \${KUBE_NAMESPACE} --no-headers | \
+          if kubectl get pods -l ${selector} -n \${KUBE_NAMESPACE} --no-headers | grep -q .; then
+              ready_count=\$(kubectl get pods -l ${selector} -n \${KUBE_NAMESPACE} --no-headers | \
                 awk '\$2 ~ /^[0-9]+\\/[0-9]+\$/ {split(\$2, a, "/"); if(a[1]==a[2] && \$3=="Running") count++} END {print count+0}' | \
                 tr -d '[:space:]')
               # 排除Terminating的Pod
-              active_pods=\$(kubectl get pods -l app=${projectName} -n \${KUBE_NAMESPACE} --no-headers | grep -v Terminating | wc -l | tr -d '[:space:]')
+              active_pods=\$(kubectl get pods -l ${selector} -n \${KUBE_NAMESPACE} --no-headers | grep -v Terminating | wc -l | tr -d '[:space:]')
               
               echo "当前状态: Ready Pod 数量 \$ready_count/\$desired_replicas (活跃Pod: \$active_pods)"
               
@@ -157,7 +262,7 @@ class Deployment implements Serializable {
                 break
               fi
           else
-              echo "未找到匹配标签 app=${projectName} 的Pod，等待Pod创建..."
+              echo "未找到匹配标签 ${selector} 的Pod，等待Pod创建..."
           fi
           
           sleep \$interval
@@ -168,7 +273,7 @@ class Deployment implements Serializable {
         if [ \$elapsed -ge \$timeout ]; then
           echo "${Colors.RED}❌ Pod 就绪检查超时${Colors.RESET}"
           echo "详细状态:"
-          kubectl get pods -l app=${projectName} -n \${KUBE_NAMESPACE} --no-headers
+          kubectl get pods -l ${selector} -n \${KUBE_NAMESPACE} --no-headers
           exit 1
         fi
       """
@@ -368,6 +473,7 @@ class Deployment implements Serializable {
     def app_module = script.readJSON text: script.env.APP_MODULE
     def needRestart = checkIfNeedRestart()
     def deployedProjects = [] as Set
+    def kubernetesWatchTargets = []
 
     for (mod in module_list) {
       def subpathRaw = app_module[mod]
@@ -418,8 +524,16 @@ class Deployment implements Serializable {
           if (needRestart) {
             restartKubernetesDeployment(project_name)
           } else {
+            def podSelector = getKubernetesPodSelector(manifest_file, project_name)
             deployToKubernetes(project_name, mod, image_addr, manifest_file)
-            watchKubernetesDeployment(project_name)
+            // 多模块发布时，先把所有模块都 apply 完，再统一等待 rollout。
+            // 这样不会出现“模块 A 等 5 分钟，模块 B 再等 5 分钟”的串行放大问题，
+            // 可以显著减少 Jenkins sh step 长时间挂住后被外部取消的概率。
+            kubernetesWatchTargets << [
+              projectName: project_name,
+              module: mod,
+              podSelector: podSelector
+            ]
           }
         } else if (script.env.PLATFORM == "vm") {
           if (needRestart) {
@@ -431,12 +545,56 @@ class Deployment implements Serializable {
             // deployToVM(project_name, deploySourceFiles, ${command_list[mod]})
           }
         }
-        script.echo "${Colors.GREEN}✅ 模块 ${project_name} ${needRestart ? '重启' : '发布'}成功${Colors.RESET}"
+        if (script.env.PLATFORM == "kubernetes" && !needRestart) {
+          script.echo "${Colors.GREEN}✅ 模块 ${project_name} manifest 已提交，等待统一 rollout/ready 检查${Colors.RESET}"
+        } else {
+          script.echo "${Colors.GREEN}✅ 模块 ${project_name} ${needRestart ? '重启' : '发布'}成功${Colors.RESET}"
+        }
+      } catch (FlowInterruptedException e) {
+        // Jenkins 主动中断、超时、节点断联等都属于 FlowInterruptedException。
+        // 这类异常必须原样抛出，不能包装成 `hudson.AbortException: null`，
+        // 否则会丢掉真正的中断原因。
+        throw e
+      } catch (InterruptedException e) {
+        // shell step / executor 被中断时也保留原始异常，方便从 Jenkins 日志定位。
+        throw e
       } catch (Exception e) {
-        script.echo "${Colors.RED}❌ 模块 ${project_name} ${needRestart ? '重启' : '发布'}失败${Colors.RESET}"
-        script.error "${e.getMessage()}"
+        script.echo "${Colors.RED}❌ 模块 ${project_name} ${needRestart ? '重启' : '发布'}失败: ${e}${Colors.RESET}"
+        throw e
       }
     }
+
+    if (script.env.PLATFORM == "kubernetes" && kubernetesWatchTargets) {
+      watchKubernetesDeployments(kubernetesWatchTargets)
+    }
+  }
+
+  def watchKubernetesDeployments(List targets) {
+    // rollout 等待是最耗时的一段。多个模块串行等待时，总耗时会随着模块数线性增长；
+    // 这里改成并行等待，让总等待时间接近“最慢的那个模块”，而不是所有模块相加。
+    def watchTasks = [:]
+
+    targets.each { target ->
+      def projectName = target.projectName
+      def module = target.module
+      def podSelector = target.podSelector
+
+      watchTasks["watch-${module}"] = {
+        script.echo "${Colors.CYAN}🔎 开始检查模块 ${projectName} 的 Deployment rollout/Pod ready 状态${Colors.RESET}"
+        // 单个模块最多等待：
+        // 1. rollout status: 300s；
+        // 2. Pod ready 检查: 300s；
+        // 这里给 12 分钟，留一点 Jenkins 调度和 kubectl 查询的缓冲时间。
+        script.timeout(time: 12, unit: 'MINUTES') {
+          watchKubernetesDeployment(projectName, podSelector)
+        }
+      }
+    }
+
+    // 不让某一个模块的 watch 失败立刻取消其他模块。
+    // 其他模块继续跑完后，parallel 仍会把失败状态抛给外层发布阶段。
+    watchTasks.failFast = false
+    script.parallel(watchTasks)
   }
 
   // 发布阶段的入口函数
