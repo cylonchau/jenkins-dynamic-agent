@@ -58,7 +58,7 @@ class ImageMaker implements Serializable {
 
           def dockerfileContent = """
             FROM nginx:1.30
-            RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list && \\
+            RUN sed -i 's|http://deb.debian.org/debian|https://mirrors.aliyun.com/debian|g; s|http://security.debian.org/debian-security|https://mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list.d/debian.sources && \
                   apt update && apt install wget && \\
                   ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \\
                   rm -rf /var/cache/apt/*
