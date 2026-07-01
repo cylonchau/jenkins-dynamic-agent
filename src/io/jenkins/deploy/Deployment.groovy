@@ -255,6 +255,20 @@ class Deployment implements Serializable {
         # 获取期望的副本数
         desired_replicas=\$(kubectl get deployment ${projectName} -n \${KUBE_NAMESPACE} -o jsonpath='{.spec.replicas}'| tr -d '[:space:]')
         echo "期望副本数: \$desired_replicas"
+
+        # 只检查本次 rollout 对应的 ReplicaSet，避免旧版本 Running/Ready Pod
+        # 掩盖本次新 Pod Pending、CrashLoopBackOff 等问题。
+        current_revision=\$(kubectl get deployment ${projectName} -n \${KUBE_NAMESPACE} \
+          -o go-template='{{index .metadata.annotations "deployment.kubernetes.io/revision"}}' | tr -d '[:space:]')
+        current_hash=\$(kubectl get replicasets -l ${selector} -n \${KUBE_NAMESPACE} \
+          -o go-template='{{range .items}}{{println (index .metadata.annotations "deployment.kubernetes.io/revision") (index .metadata.labels "pod-template-hash")}}{{end}}' | \
+          awk -v revision="\$current_revision" '\$1 == revision {print \$2; exit}')
+        if [ -z "\$current_hash" ]; then
+          echo "${Colors.RED}❌ 无法找到本次 Deployment revision=\$current_revision 对应的 ReplicaSet${Colors.RESET}"
+          exit 1
+        fi
+        rollout_selector="${selector},pod-template-hash=\$current_hash"
+        echo "本次版本: revision=\$current_revision, pod-template-hash=\$current_hash"
         
         # 循环检查，直到有足够数量的非 Terminating Pod 处于 Ready 状态
         timeout=300
@@ -262,21 +276,27 @@ class Deployment implements Serializable {
         elapsed=0
         
         while [ \$elapsed -lt \$timeout ]; do
-          if kubectl get pods -l ${selector} -n \${KUBE_NAMESPACE} --no-headers | grep -q .; then
-              ready_count=\$(kubectl get pods -l ${selector} -n \${KUBE_NAMESPACE} --no-headers | \
-                awk '\$2 ~ /^[0-9]+\\/[0-9]+\$/ {split(\$2, a, "/"); if(a[1]==a[2] && \$3=="Running") count++} END {print count+0}' | \
-                tr -d '[:space:]')
-              # 排除Terminating的Pod
-              active_pods=\$(kubectl get pods -l ${selector} -n \${KUBE_NAMESPACE} --no-headers | grep -v Terminating | wc -l | tr -d '[:space:]')
+          if kubectl get pods -l "\$rollout_selector" -n \${KUBE_NAMESPACE} --no-headers | grep -q .; then
+              # 只统计未被删除且 Ready=True 的 Pod。不要依赖 kubectl 表格中的 STATUS 文本，
+              # 否则历史遗留的 Error/Failed/Succeeded Pod 会干扰发布结果。
+              ready_count=\$(kubectl get pods -l "\$rollout_selector" -n \${KUBE_NAMESPACE} \
+                -o go-template='{{range .items}}{{if not .metadata.deletionTimestamp}}{{range .status.conditions}}{{if and (eq .type "Ready") (eq .status "True")}}{{println "ready"}}{{end}}{{end}}{{end}}{{end}}' | \
+                wc -l | tr -d '[:space:]')
+              # 活跃 Pod 仅指未进入删除流程的 Running/Pending Pod；终态历史 Pod 不计入。
+              active_pods=\$(kubectl get pods -l "\$rollout_selector" -n \${KUBE_NAMESPACE} \
+                -o go-template='{{range .items}}{{if not .metadata.deletionTimestamp}}{{if or (eq .status.phase "Running") (eq .status.phase "Pending")}}{{println .metadata.name}}{{end}}{{end}}{{end}}' | \
+                wc -l | tr -d '[:space:]')
               
               echo "当前状态: Ready Pod 数量 \$ready_count/\$desired_replicas (活跃Pod: \$active_pods)"
               
-              if [ "\$ready_count" -eq "\$desired_replicas" ] && [ "\$active_pods" -eq "\$desired_replicas" ]; then
+              # rollout 已成功时，只要 Ready Pod 达到期望副本数即可。额外的历史异常 Pod
+              # （包括 phase=Running 的 CrashLoopBackOff）不应让本次发布超时。
+              if [ "\$ready_count" -ge "\$desired_replicas" ]; then
                 echo "${Colors.GREEN}✅ 部署成功，所有 Pod 已就绪: \$ready_count/\$desired_replicas${Colors.RESET}"
                 break
               fi
           else
-              echo "未找到匹配标签 ${selector} 的Pod，等待Pod创建..."
+              echo "未找到本次版本的 Pod (\$rollout_selector)，等待Pod创建..."
           fi
           
           sleep \$interval
@@ -287,7 +307,7 @@ class Deployment implements Serializable {
         if [ \$elapsed -ge \$timeout ]; then
           echo "${Colors.RED}❌ Pod 就绪检查超时${Colors.RESET}"
           echo "详细状态:"
-          kubectl get pods -l ${selector} -n \${KUBE_NAMESPACE} --no-headers
+          kubectl get pods -l "\$rollout_selector" -n \${KUBE_NAMESPACE} --no-headers
           exit 1
         fi
       """
