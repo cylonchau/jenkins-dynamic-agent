@@ -490,18 +490,20 @@ class Deployment implements Serializable {
   // 部署逻辑
   def deployModules() {
     def module_list = (script.params.MODULES ?: script.env.MODULES ?: '').split(',')
-    def command_list
-    def pre_command_list
-    if (script.env.EXEC_COMMAND?.trim()) {
-      command_list = script.readJSON text: script.env.EXEC_COMMAND
-    } else {
-      command_list = [:]
-    }
+    
+    def modulesData = script.selectedModuleConfig?.modules
+    def isMultiModule = (modulesData instanceof Map && modulesData.size() > 1)
 
-    if (script.env.PRE_EXEC_COMMAND?.trim()) {
-      pre_command_list = script.readJSON text: script.env.PRE_EXEC_COMMAND
-    } else {
-      pre_command_list = [:]
+    def command_list = [:]
+    def pre_command_list = [:]
+
+    if (isMultiModule) {
+      if (script.env.EXEC_COMMAND?.trim()) {
+        command_list = script.readJSON text: script.env.EXEC_COMMAND
+      }
+      if (script.env.PRE_EXEC_COMMAND?.trim()) {
+        pre_command_list = script.readJSON text: script.env.PRE_EXEC_COMMAND
+      }
     }
 
     def app_module = script.readJSON text: script.env.APP_MODULE
@@ -519,9 +521,6 @@ class Deployment implements Serializable {
 
       def project_name
       def manifest_file
-      
-      def modulesData = script.selectedModuleConfig?.modules
-      def isMultiModule = (modulesData instanceof Map && modulesData.size() > 1)
 
       if (script.env.SHARED_MODULE?.toBoolean() && !isMultiModule) {
         project_name = CommonTools.getInstance(script).getProjectName(script.env.JOB_PREFIX, script.env.JOB_SUFFIX)
@@ -570,10 +569,12 @@ class Deployment implements Serializable {
             ]
           }
         } else if (script.env.PLATFORM == "vm") {
+          def cmd = isMultiModule ? (command_list[mod]?.toString() ?: "") : (script.env.EXEC_COMMAND ?: "")
+          def preCmd = isMultiModule ? (pre_command_list[mod]?.toString() ?: "") : (script.env.PRE_EXEC_COMMAND ?: "")
           if (needRestart) {
-            restartVMService(project_name, command_list[mod]?.toString() ?: "")
+            restartVMService(project_name, cmd)
           } else {
-            deployToVM(project_name, path, pre_command_list[mod]?.toString() ?: "", command_list[mod]?.toString() ?: "")
+            deployToVM(project_name, path, preCmd, cmd)
             // 不安全方法
             // deploySourceFiles = "${path}/${module_list[mod]}" 
             // deployToVM(project_name, deploySourceFiles, ${command_list[mod]})
