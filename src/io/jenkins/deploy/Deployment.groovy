@@ -501,25 +501,29 @@ class Deployment implements Serializable {
     def command_list = [:]
     def pre_command_list = [:]
 
-    if (isMultiModule) {
-      if (script.env.EXEC_COMMAND?.trim()) {
+    if (script.env.EXEC_COMMAND?.trim()) {
+      def trimmed = script.env.EXEC_COMMAND.trim()
+      if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
         try {
-          def parsed = script.readJSON text: script.env.EXEC_COMMAND
+          def parsed = script.readJSON text: trimmed
           if (parsed instanceof Map) {
             command_list = parsed
           }
         } catch (Exception e) {
-          script.echo "⚠️ 解析 EXEC_COMMAND 为 JSON 失败，可能是一个普通字符串: ${e.getMessage()}"
+          script.echo "⚠️ 解析 EXEC_COMMAND 为 JSON 失败: ${e.getMessage()}"
         }
       }
-      if (script.env.PRE_EXEC_COMMAND?.trim()) {
+    }
+    if (script.env.PRE_EXEC_COMMAND?.trim()) {
+      def trimmed = script.env.PRE_EXEC_COMMAND.trim()
+      if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
         try {
-          def parsed = script.readJSON text: script.env.PRE_EXEC_COMMAND
+          def parsed = script.readJSON text: trimmed
           if (parsed instanceof Map) {
             pre_command_list = parsed
           }
         } catch (Exception e) {
-          script.echo "⚠️ 解析 PRE_EXEC_COMMAND 为 JSON 失败，可能是一个普通字符串: ${e.getMessage()}"
+          script.echo "⚠️ 解析 PRE_EXEC_COMMAND 为 JSON 失败: ${e.getMessage()}"
         }
       }
     }

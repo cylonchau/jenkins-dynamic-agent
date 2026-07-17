@@ -6,6 +6,17 @@ import io.jenkins.common.Init
 import io.jenkins.build.ImageMaker
 import io.jenkins.build.Compilation
 import io.jenkins.deploy.Deployment
+import groovy.transform.Field
+
+@Field def init
+@Field def image_builer
+@Field def build_client
+@Field def deploy_client
+@Field def agent_mgr
+@Field def hook_funcs
+@Field def git_client
+@Field def common
+@Field def selectedModuleConfig
 
 pipeline {
   agent any
