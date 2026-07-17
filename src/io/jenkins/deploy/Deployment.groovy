@@ -327,7 +327,7 @@ class Deployment implements Serializable {
 
       def baseDir = "${script.env.ROOT_WORKSPACE}/${script.env.MAIN_PROJECT}"
 
-      if (pre_command && pre_command != "") {
+      if (isValidCommand(pre_command)) {
         script.dir(script.env.ROOT_WORKSPACE) {
           executeVMCommand(projectName, remoteHost, remoteDir, pre_command)
         }
@@ -420,7 +420,7 @@ class Deployment implements Serializable {
         }
       }
 
-      if (command && command != "") {
+      if (isValidCommand(command)) {
         script.dir(script.env.ROOT_WORKSPACE) {
           executeVMCommand(projectName, remoteHost, remoteDir, command)
         }
@@ -433,7 +433,7 @@ class Deployment implements Serializable {
       def remoteHost = script.env.DESTINATION_HOST
       if (!remoteHost) script.error "VM重启需要配置 destination_host"
 
-      if (command && command != "") {
+      if (isValidCommand(command)) {
         executeVMCommand(projectName, remoteHost, remoteDir, command)
       } else {
         script.echo "${Colors.YELLOW}⚠️ 未配置exec_command，跳过VM重启${Colors.RESET}"
@@ -458,6 +458,10 @@ class Deployment implements Serializable {
       hosts.each { host ->
         // 通过 evalTemplate 来动态解析 command 中的变量达到统一管理命令的方式
         def finalCommand = evalTemplate(command, script)
+        if (!isValidCommand(finalCommand)) {
+          script.echo "⚠️ 解析后的命令为空或无效，跳过执行: ${finalCommand}"
+          return
+        }
         def commandHead = finalCommand.tokenize(' ')[0] ?: ""
         def runScriptPath = commandHead.endsWith("run.sh") ? commandHead : "${remoteDir.replaceAll('/+$', '')}/run.sh"
         def runScriptDir = runScriptPath.contains('/') ? runScriptPath.substring(0, runScriptPath.lastIndexOf('/')) : remoteDir
@@ -499,10 +503,24 @@ class Deployment implements Serializable {
 
     if (isMultiModule) {
       if (script.env.EXEC_COMMAND?.trim()) {
-        command_list = script.readJSON text: script.env.EXEC_COMMAND
+        try {
+          def parsed = script.readJSON text: script.env.EXEC_COMMAND
+          if (parsed instanceof Map) {
+            command_list = parsed
+          }
+        } catch (Exception e) {
+          script.echo "⚠️ 解析 EXEC_COMMAND 为 JSON 失败，可能是一个普通字符串: ${e.getMessage()}"
+        }
       }
       if (script.env.PRE_EXEC_COMMAND?.trim()) {
-        pre_command_list = script.readJSON text: script.env.PRE_EXEC_COMMAND
+        try {
+          def parsed = script.readJSON text: script.env.PRE_EXEC_COMMAND
+          if (parsed instanceof Map) {
+            pre_command_list = parsed
+          }
+        } catch (Exception e) {
+          script.echo "⚠️ 解析 PRE_EXEC_COMMAND 为 JSON 失败，可能是一个普通字符串: ${e.getMessage()}"
+        }
       }
     }
 
@@ -569,8 +587,8 @@ class Deployment implements Serializable {
             ]
           }
         } else if (script.env.PLATFORM == "vm") {
-          def cmd = isMultiModule ? (command_list[mod]?.toString() ?: "") : (script.env.EXEC_COMMAND ?: "")
-          def preCmd = isMultiModule ? (pre_command_list[mod]?.toString() ?: "") : (script.env.PRE_EXEC_COMMAND ?: "")
+          def cmd = getModuleCommand(mod, command_list, script.env.EXEC_COMMAND)
+          def preCmd = getModuleCommand(mod, pre_command_list, script.env.PRE_EXEC_COMMAND)
           if (needRestart) {
             restartVMService(project_name, cmd)
           } else {
@@ -648,6 +666,28 @@ class Deployment implements Serializable {
     } else {
       deployModules()
     }
+  }
+
+  boolean isValidCommand(String command) {
+    if (!command) return false
+    def trimmed = command.trim()
+    if (trimmed == "" || trimmed == "{}" || trimmed == "[]" || trimmed == "[:]") return false
+    return true
+  }
+
+  def getModuleCommand(mod, Map commandList, String envCommand) {
+    if (commandList && commandList[mod]) {
+      return commandList[mod].toString()
+    }
+    if (envCommand && envCommand.trim()) {
+      def trimmed = envCommand.trim()
+      // If it starts with { or [ (which means it's a JSON/map/list representation), it's not a direct command
+      if (trimmed.startsWith("{") || trimmed.startsWith("[") || trimmed.startsWith("[:")) {
+        return ""
+      }
+      return trimmed
+    }
+    return ""
   }
 
 }

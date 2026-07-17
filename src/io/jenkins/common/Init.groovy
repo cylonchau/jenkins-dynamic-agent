@@ -70,8 +70,8 @@ class Init implements Serializable {
     if (script.env.PLATFORM?.trim() == "vm"){
       script.env.DESTINATION_DIR     = (selectedModuleConfig.destination_dir ?: selectedModuleConfig.destnation_dir)?.toString() ?: ""
       script.env.DESTINATION_HOST    = selectedModuleConfig.destination_host?.toString() ?: ""
-      script.env.EXEC_COMMAND        = selectedModuleConfig.exec_command?.toString() ?: ""
-      script.env.PRE_EXEC_COMMAND    = selectedModuleConfig.pre_exec_command?.toString() ?: ""
+      script.env.EXEC_COMMAND        = serializeCommand(selectedModuleConfig.exec_command)
+      script.env.PRE_EXEC_COMMAND    = serializeCommand(selectedModuleConfig.pre_exec_command)
     }
     
     script.env.PRE_BUILD_COMMAND      = selectedModuleConfig.pre_build_command?.toString() ?: ""
@@ -398,5 +398,14 @@ class Init implements Serializable {
     }
     
     return params
+  }
+
+  private String serializeCommand(command) {
+    if (command == null) return ""
+    if (command instanceof String) return command.trim()
+    if (command instanceof Map || command instanceof List) {
+      return groovy.json.JsonOutput.toJson(command)
+    }
+    return command.toString().trim()
   }
 }
