@@ -28,12 +28,12 @@ pipeline {
     stage('载入配置') {
       steps {
         script {
-          this.init             = new Init(this)
-          this.image_builer     = new ImageMaker(this)
-          this.build_client     = new Compilation(this)
-          this.deploy_client    = new Deployment(this)
-          this.agent_mgr        = AgentManager.init(this)
-          this.hook_funcs       = load 'utils/hook.groovy'
+          init          = new Init(this)
+          image_builer  = new ImageMaker(this)
+          build_client  = new Compilation(this)
+          deploy_client = new Deployment(this)
+          agent_mgr     = AgentManager.init(this)
+          hook_funcs    = load 'utils/hook.groovy'
           init.initGlobalVariables()
           if (env.DOWNLOAD_FROM_RELEASE == 'true') {
             env.CURRENT_COMMIT_ID = "release-download"

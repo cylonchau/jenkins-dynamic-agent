@@ -19,8 +19,8 @@ class Init implements Serializable {
   }
 
   void initGlobalVariables() {
-    script.git_client       = new Stages(script)
-    script.common           = new CommonTools(script)
+    script.binding.setVariable('git_client', new Stages(script))
+    script.binding.setVariable('common', new CommonTools(script))
     //初始化配置
     def config = script.readJSON(file: 'modules.json')
     // 自动处理文件夹路径，确保匹配到 modules.json 中的 Key
@@ -31,7 +31,7 @@ class Init implements Serializable {
         script.echo "${Colors.RED}❌ 无法在 modules.json 中找到配置: ${jobName}${Colors.RESET}"
         script.error "配置丢失"
     }
-    script.selectedModuleConfig = selectedModuleConfig
+    script.binding.setVariable('selectedModuleConfig', selectedModuleConfig)
     def globalConfig = config["global"]
 
     // job 配置
