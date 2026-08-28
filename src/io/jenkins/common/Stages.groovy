@@ -24,6 +24,7 @@ class Stages implements Serializable {
       script.env.IS_FIRST_BUILD = (script.currentBuild.number == 1) ? 'true' : 'false'
       def fallbackBranches = script.env.FALLBACK_BRANCHES ? script.env.FALLBACK_BRANCHES.split(',').collect { it.trim() } : ['master', 'test']
 
+      boolean mainSuccess = false
       try {
           script.echo "${Colors.CYAN}准备拉取代码: ${git_repo}, 分支: ${selectedBranch}, commit: ${commit ?: 'latest'}${Colors.RESET}"
 
@@ -44,23 +45,26 @@ class Stages implements Serializable {
               commitId = script.sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
               script.echo "${Colors.GREEN}已检出分支 ${selectedBranch} 最新 commit: ${commitId}${Colors.RESET}"
           }
+          mainSuccess = true
+      } catch (Exception e) {
+          script.echo "${Colors.RED}拉取分支 ${selectedBranch} 失败: ${e}${Colors.RESET}"
+      }
 
+      if (mainSuccess) {
           if (script.env.IS_FIRST_BUILD == 'true') {
               script.env.USED_FALLBACK_BRANCH = 'true'
               script.echo "${Colors.BG_CYAN}第一次执行（构建 #${script.currentBuild.number}），终止流水线${Colors.RESET}"
               script.currentBuild.result = 'ABORTED'
               script.error "终止流水线: 第一次构建仅用于初始化参数"
           }
-
           return commitId
-      } catch (Exception e) {
-          script.echo "${Colors.RED}拉取分支 ${selectedBranch} 失败: ${e}${Colors.RESET}"
       }
 
       // fallback 分支逻辑
       for (fallbackBranch in fallbackBranches) {
           fallbackBranch = fallbackBranch.replaceAll('"', '')
           if (fallbackBranch != selectedBranch) {
+              boolean fallbackSuccess = false
               try {
                   script.echo "${Colors.YELLOW}尝试备用分支: ${fallbackBranch}${Colors.RESET}"
                   script.checkout([
@@ -70,13 +74,17 @@ class Stages implements Serializable {
                       extensions: [[$class: 'CloneOption', timeout: 5], [$class: 'WipeWorkspace']]
                   ])
                   commitId = script.sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
+                  fallbackSuccess = true
+              } catch (Exception ex) {
+                  script.echo "${Colors.RED}拉取备用分支 ${fallbackBranch} 失败: ${ex.message}${Colors.RESET}"
+              }
+
+              if (fallbackSuccess) {
                   script.echo "${Colors.GREEN}成功通过备用分支 ${fallbackBranch} 获取了参数列表，根据要求终止流水线${Colors.RESET}"
                   script.env.USED_FALLBACK_BRANCH = 'true'
                   script.currentBuild.result = 'ABORTED'
                   script.error "终止流水线: 已通过备用分支更新参数"
                   return commitId
-              } catch (Exception ex) {
-                  script.echo "${Colors.RED}拉取备用分支 ${fallbackBranch} 失败: ${ex.message}${Colors.RESET}"
               }
           }
       }
